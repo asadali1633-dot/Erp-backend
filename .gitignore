@@ -17,6 +17,10 @@ dist/
 # Environment variables
 .env
 .env.*
+
+git rm --cached .env
+git commit -m "Remove env file from git tracking"
+
 # Compiled Java class files
 *.class
 
