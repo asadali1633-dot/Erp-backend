@@ -6,6 +6,8 @@ const bodyParser = require("body-parser");
 const routers = require('./routes/router');
 const tenantDbMiddleware  = require('./middlewares/tenantDbMiddleware');
 const path = require('path');
+// const path = require('path');
+
 
 
 // app.use(cors());
