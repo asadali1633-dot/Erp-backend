@@ -178,7 +178,6 @@ const UpdateCompany = async (req, res) => {
       phone = null,
       whatsapp_no = null,
       website_url = null,
-      domain = null,
       address = null,
       zipcode = null,
       brief_note = null,
@@ -196,12 +195,12 @@ const UpdateCompany = async (req, res) => {
     await db.execute(
       `
       UPDATE companies 
-      SET phone = ?, whatsapp_no = ?, website_url = ?, domain = ?, 
+      SET phone = ?, whatsapp_no = ?, website_url = ?, 
       address = ?, zipcode = ?, brief_note = ?, 
       modified_date = NOW()
       WHERE id = ?
       `,
-      [phone, whatsapp_no, website_url, domain, address, zipcode, brief_note, userId]
+      [phone, whatsapp_no, website_url, address, zipcode, brief_note, userId]
     );
 
     res.status(200).json({
