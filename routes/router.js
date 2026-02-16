@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { SignupFunction,RefreshToken, SignInUser, signupWithCompany} = require("../controllers/SignUp/index");
 const { GetUser,UpdateCompany, GetCompanyByAdmin } = require("../controllers/company/index")
-const { CreateHardware,GetAllHardware,UpdateHardware, GetHardwareById, DeleteHardware } = require("../controllers/assets/hardware/index")
+const { CreateHardware,GetAllHardware,UpdateHardware, GetHardwareById, DeleteHardware, generateUniqueBarcode } = require("../controllers/assets/hardware/index")
 const { CreateSoftware, GetAllSoftware, GetSoftwareById, UpdateSoftware, DeleteSoftware } = require("../controllers/assets/Software/index")
 const upload = require("../controllers/filemulters/projectMulter"); 
 const { GetAllBrandsManufacturer, CreateBrand } = require("../controllers/Brand");
@@ -13,7 +13,7 @@ const {resendOtp,verifyOtp, forgotPassSentOtp, updatePassword,} = require("../co
 const { CreateRoles, GetAllRoles } = require("../controllers/roles");
 const { CreateDesignation, GetAllDesignations } = require("../controllers/designations");
 const { SaveTheme, GetTheme } = require("../controllers/themes");
-const { GenratedEmpId, CreatePeople, GetEmpByIdSearchWithPagination, GetAllEmployeesBySimpleList, UpdatePeople, DeleteEmployees, UpdateSuperAdmin, uploadUserImage, GetSuperAdminById, uploadSuperAdminImage, GetEmployeeById } = require("../controllers/People");
+const { GenratedEmpId, CreatePeople, GetEmpByIdSearchWithPagination, GetAllEmployeesBySimpleList, UpdatePeople, DeleteEmployees, UpdateSuperAdmin, uploadUserImage, GetSuperAdminById, uploadSuperAdminImage, GetEmployeeById, CreateSuperAdmin, GenratedSuperAdminEmpId } = require("../controllers/People");
 const { syncModules } = require("../controllers/Modules/DataSeeder");
 const {checkPermission} = require("../middlewares/PermissionModule");
 const tenantDbMiddleware = require("../middlewares/tenantDbMiddleware");
@@ -74,7 +74,6 @@ router.post('/api/hardware/CreateBrand',
 router.get('/api/get/GetAllDepartments',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("department_view"),
     GetAllDepartments)
 
@@ -82,7 +81,6 @@ router.get('/api/get/GetAllDepartments',
 router.post('/api/hardware/CreateDepartment',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("department_create"),
     CreateDepartment)
 
@@ -90,14 +88,12 @@ router.post('/api/hardware/CreateDepartment',
 router.post('/api/createRole/ByAdmin',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("roles_create"),
     CreateRoles)
 
 router.get('/api/GetAllRole/ByAdmin',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("roles_view"),
     GetAllRoles)
 
@@ -106,49 +102,49 @@ router.get('/api/GetAllRole/ByAdmin',
 router.post('/api/createDesignation/ByAdmin',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("designation_create"),
     CreateDesignation)
 
 router.get('/api/GetAllDesignation/ByAdmin',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("designation_view"),
     GetAllDesignations)
 
 // HARDWARE ROUTES =====================================
+router.get(
+    '/api/assests/barcode/unique',
+    verifyToken,
+    tenantDbMiddleware,
+    generateUniqueBarcode
+);
+
 router.post('/api/hardware/CreateHardware',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("hardware_create"),
     CreateHardware)
 
 router.get('/api/hardware/GetAllHardware',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("hardware_view"),
     GetAllHardware)
 
 router.put('/api/hardware/UpdateHardware/:id',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("hardware_update"),
     UpdateHardware)
 
 router.get("/api/get/all/hardware/:id", 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GetHardwareById);
 
 router.post('/api/Hardware/DeleteHardware',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("hardware_delete"),
     DeleteHardware);
 
@@ -157,34 +153,29 @@ router.post('/api/Hardware/DeleteHardware',
 router.post('/api/software/CreateSoftware',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("software_create"),
     CreateSoftware)
 
 router.get('/api/software/getAllsoftwareByPage',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("software_view"),
     GetAllSoftware)
 
 router.get("/api/software/all/getsoftware/:id", 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GetSoftwareById);
 
 router.put('/api/software/UpdateSoftware/:id',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("software_update"),
     UpdateSoftware)
 
 router.post('/api/Software/DeleteSoftware', 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("software_delete"),
     DeleteSoftware);
 
@@ -193,13 +184,11 @@ router.post('/api/Software/DeleteSoftware',
 router.get('/api/permissions_view/byAdmin',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     getAdminEmployeesPermissions)
 
 router.post( "/api/permissions/save/byAdmin",
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     saveEmployeePermissions);
 
 
@@ -207,38 +196,37 @@ router.post( "/api/permissions/save/byAdmin",
 router.post('/api/theme/saveThemeSetting',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     SaveTheme)
 
 router.get('/api/theme/getThemeSetting',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GetTheme)
 
 // EMPLOYEE CRETAE ROUTES =====================================
 router.get("/api/emp-next-id",
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GenratedEmpId);
+
+router.get("/api/super-admin-next-id",
+    verifyToken,
+    tenantDbMiddleware,
+    GenratedSuperAdminEmpId
+);
 
 router.post("/api/emp/create-emp",
     verifyToken, 
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("people_create"),
     CreatePeople);
 
 
-// router.post("/api/create/create-super-admin",
-//     verifyToken, 
-//     tenantDbMiddleware,
-//     // checkCompanyAccess,
-//     // checkPermission("people_create"),
-//     CreateSuperAdmin);
-//     // CreateSuperAdmin
-// //  checkPermission("people_update")
+router.post("/api/create/create-super-admin",
+    verifyToken, 
+    tenantDbMiddleware,
+    CreateSuperAdmin
+);
 
 
 router.post('/api/profile/Image',
@@ -258,46 +246,39 @@ router.post('/api/super-admin/profile/Image',
 router.put("/api/updateEmp/:id", 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     UpdatePeople);
 
 router.put("/api/UpdateSuperAdmin/:id", 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     UpdateSuperAdmin);
 
 router.post('/api/DeleteEmp', 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("people_delete"),
     DeleteEmployees);
 
 router.get('/api/GetEmpByIdSearchWithPagination',
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     checkPermission("people_view"),
     GetEmpByIdSearchWithPagination)
 
 router.get("/api/getEmpolyee/:id", 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GetEmployeeById);
 
 
 router.get("/api/GetSuperAdminById/:id", 
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GetSuperAdminById);
 
 router.get("/api/GetAllEmployeesBySimpleList",
     verifyToken,
     tenantDbMiddleware,
-    // checkCompanyAccess,
     GetAllEmployeesBySimpleList);
 
 

@@ -63,7 +63,7 @@ const CreatePeople = async (req, res) => {
     }
 
     const {
-      emp_id,
+      emp_id, // User input emp_id
       first_name,
       last_name,
       email,
@@ -92,14 +92,36 @@ const CreatePeople = async (req, res) => {
       user_type
     } = req.body;
 
-    const [existing] = await db.execute(
+
+    const empIdRegex = /^\d{4}$/;
+    if (!empIdRegex.test(emp_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee ID must be exactly 4 digits (e.g., 0004, 0005)",
+      });
+    }
+
+
+    const [existingEmpId] = await db.execute(
+      `SELECT emp_id FROM employee_info 
+       WHERE emp_id = ? AND company_id = ?`,
+      [emp_id, companyId]
+    );
+
+    if (existingEmpId.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `Employee ID ${emp_id} is already taken. Please choose another ID.`,
+      });
+    }
+    const [existingEmail] = await db.execute(
       `SELECT email FROM employee_info WHERE email = ? AND company_id = ?
        UNION
        SELECT email FROM super_admin WHERE email = ?`,
       [email, companyId, email]
     );
 
-    if (existing.length > 0) {
+    if (existingEmail.length > 0) {
       return res.status(409).json({
         success: false,
         message: "Email already exists",
@@ -108,8 +130,6 @@ const CreatePeople = async (req, res) => {
 
     const plainPassword = "123456789";
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
-
-    /* -------- INSERT EMPLOYEE -------- */
     const sql = `
       INSERT INTO employee_info (
         company_id,
@@ -184,7 +204,8 @@ const CreatePeople = async (req, res) => {
       user_type || null
     ]);
 
-    /* -------- EMAIL -------- */
+
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -212,6 +233,7 @@ const CreatePeople = async (req, res) => {
       success: true,
       message: "Employee created successfully",
       userId: result.insertId,
+      emp_id: emp_id,
     });
 
   } catch (error) {
@@ -230,10 +252,10 @@ const UpdatePeople = async (req, res) => {
     const companyId = req.user.company;
     const { email } = req.body.email
     const { id } = req.params;
-
+    const { emp_id } = req.body;
 
     const [empCheck] = await db.execute(
-      `SELECT id FROM employee_info WHERE id = ? AND company_id = ?`,
+      `SELECT id, emp_id, email FROM employee_info WHERE id = ? AND company_id = ?`,
       [id, companyId]
     );
 
@@ -244,24 +266,48 @@ const UpdatePeople = async (req, res) => {
       });
     }
 
-    // 2️⃣ Email uniqueness check within company
+    const currentEmployee = empCheck[0];
+    if (emp_id) {
+      const empIdRegex = /^\d{4}$/;
+      if (!empIdRegex.test(emp_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Employee ID must be exactly 4 digits (e.g., 0004, 0005)",
+        });
+      }
+
+      if (emp_id !== currentEmployee.emp_id.toString().padStart(4, '0')) {
+        const [existingEmpId] = await db.execute(
+          `SELECT emp_id FROM employee_info 
+           WHERE emp_id = ? AND company_id = ?`,
+          [emp_id, companyId]
+        );
+
+        if (existingEmpId.length > 0) {
+          return res.status(409).json({
+            success: false,
+            message: `Employee ID ${emp_id} is already taken. Please choose another ID.`,
+          });
+        }
+      }
+    }
+
     if (email) {
-      const [existing] = await db.execute(
-        `SELECT id FROM employee_info WHERE email = ? AND id != ? AND company_id = ?
+      const [existingEmail] = await db.execute(
+        `SELECT email FROM employee_info WHERE email = ? AND company_id = ? AND id != ?
          UNION
-         SELECT id FROM super_admin WHERE email = ?`,
-        [email, id, companyId, email]
+         SELECT email FROM super_admin WHERE email = ?`,
+        [email, companyId, id, email]
       );
 
-      if (existing.length > 0) {
+      if (existingEmail.length > 0) {
         return res.status(409).json({
           success: false,
-          message: "Email already exists in this company",
+          message: "Email already exists",
         });
       }
     }
 
-    // 3️⃣ Allowed fields update
     const allowedFields = [
       "emp_id", "first_name", "last_name", "email", "department", "role", "designation",
       "mobile_number", "whatsapp_number", "emergency_number", "phone_extension",
@@ -277,13 +323,13 @@ const UpdatePeople = async (req, res) => {
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         updateFields.push(`${field} = ?`);
-        values.push(req.body[field]);
+        values.push(req.body[field] || null);
       }
     });
 
     if (!updateFields.length) {
       return res.status(400).json({
-        failed: false,
+        success: false,
         message: "No fields provided to update",
       });
     }
@@ -300,12 +346,13 @@ const UpdatePeople = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Employee updated successfully",
+      emp_id: emp_id || currentEmployee.emp_id.toString().padStart(4, '0'),
     });
 
   } catch (error) {
     console.error("UpdatePeople Error:", error);
     return res.status(500).json({
-      failed: false,
+      success: false,
       message: "Server error",
       error: error.message,
     });
@@ -483,6 +530,7 @@ const GetEmployeeById = async (req, res) => {
       `SELECT 
         e.id,
         e.emp_id,
+        e.emp_id,
         e.first_name,
         e.last_name,
         e.email,
@@ -641,6 +689,236 @@ const uploadUserImage = async (req, res) => {
 };
 
 // SUPER ADMIN APIS ==============
+
+const GenratedSuperAdminEmpId = async (req, res) => {
+  try {
+    const db = req.db;
+
+    const [empRows] = await db.execute(
+      `SELECT emp_id
+       FROM super_admin
+       WHERE emp_id REGEXP '^[0-9]+$' 
+         AND LENGTH(emp_id) = 4
+       ORDER BY CAST(emp_id AS UNSIGNED) DESC
+       LIMIT 1`
+    );
+
+    let nextEmployeeId = "0004"; // Default starting ID
+
+    if (empRows.length > 0 && empRows[0].emp_id) {
+      const lastId = parseInt(empRows[0].emp_id, 10);
+      if (!isNaN(lastId) && lastId >= 4) {
+        nextEmployeeId = (lastId + 1).toString().padStart(4, "0");
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Next Super Admin ID generated successfully",
+      next_super_admin_id: nextEmployeeId,
+    });
+
+  } catch (error) {
+    console.error("Super Admin Emp Generated Id Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+const CreateSuperAdmin = async (req, res) => {
+  try {
+    const db = req.db;
+    const companyId = req.user.company;
+
+    const {
+      emp_id,
+      first_name,
+      last_name,
+      email,
+      department,
+      role,
+      designation,
+      mobile_number,
+      whatsapp_number,
+      emergency_number,
+      phone_extension,
+      full_address,
+      province,
+      country,
+      city,
+      postal_code,
+      facebook_link,
+      linkedin_link,
+      x_link,
+      blood_group,
+      gender,
+      joining_date,
+      date_of_birth,
+      identity_type,
+      status,
+      identity_number
+    } = req.body;
+
+    const empIdRegex = /^\d{4}$/;
+    if (!empIdRegex.test(emp_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee ID must be exactly 4 digits (e.g., 0004, 0005)",
+      });
+    }
+    const [existingEmpId] = await db.execute(
+      `SELECT emp_id FROM super_admin WHERE emp_id = ?`,
+      [emp_id]
+    );
+
+    if (existingEmpId.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `Employee ID ${emp_id} is already taken. Please choose another ID.`,
+      });
+    }
+
+    const [existingEmail] = await db.execute(
+      `SELECT email FROM super_admin WHERE email = ?
+       UNION
+       SELECT email FROM employee_info WHERE email = ?`,
+      [email, email]
+    );
+
+    if (existingEmail.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already exists",
+      });
+    }
+
+    const plainPassword = "123456789";
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+    const sql = `
+      INSERT INTO super_admin (
+        emp_id,
+        first_name,
+        last_name,
+        user_type,
+        department,
+        role,
+        designation,
+        email,
+        password,
+        mobile_number,
+        whatsapp_number,
+        emergency_number,
+        phone_extension,
+        full_address,
+        province,
+        country,
+        city,
+        postal_code,
+        facebook_link,
+        linkedin_link,
+        x_link,
+        blood_group,
+        gender,
+        joining_date,
+        date_of_birth,
+        identity_type,
+        identity_number,
+        status
+      ) VALUES (
+        ?, ?, ?, 'Super_admin', ?, ?, ?,
+        ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?
+      )
+    `;
+
+   
+    const [result] = await db.execute(sql, [
+      emp_id,
+      first_name,
+      last_name,
+      department,
+      role,
+      designation,
+      email,
+      hashedPassword,
+      mobile_number || null,
+      whatsapp_number || null,
+      emergency_number || null,
+      phone_extension || null,
+      full_address || null,
+      province || null,
+      country || null,
+      city || null,
+      postal_code || null,
+      facebook_link || null,
+      linkedin_link || null,
+      x_link || null,
+      blood_group || null,
+      gender || null,
+      joining_date || null,
+      date_of_birth || null,
+      identity_type || null,
+      identity_number || null,
+      status || null
+    ]);
+
+     await db.execute(
+      `INSERT INTO company_admin_access
+        (company_id, super_admin_id, user_type, status)
+      VALUES (?, ?, ?, ?)`,
+      [companyId, result.insertId, 'Super_admin', 'active']
+    );
+
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_CONFIG,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Support Team" <${process.env.EMAIL_CONFIG}>`,
+      to: email,
+      subject: "Your Super Admin Account Credentials",
+      html: `
+        <h3>Hello ${first_name},</h3>
+        <p>Your Super Admin account has been created successfully.</p>
+        <p><b>Employee ID:</b> ${emp_id}</p>
+        <p><b>Email:</b> ${email}</p>
+        <p><b>Password:</b> ${plainPassword}</p>
+        <p>Please change your password after first login.</p>
+        <br/>
+        <p>Regards,<br/>System Admin Team</p>
+      `,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Super Admin created successfully",
+      userId: result.insertId,
+      emp_id: emp_id,
+    });
+
+  } catch (error) {
+    console.error("CreateSuperAdmin Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 const GetSuperAdminById = async (req, res) => {
   try {
     const db = req.db;
@@ -657,6 +935,7 @@ const GetSuperAdminById = async (req, res) => {
     const [admins] = await db.execute(
       `SELECT
         a.id,
+        a.emp_id,
         a.first_name,
         a.last_name,
         a.email,
@@ -733,8 +1012,9 @@ const UpdateSuperAdmin = async (req, res) => {
     const super_admin_id = req.user.id;
     const { email } = req.body.email
     const { id } = req.params.id
+    const { emp_id } = req.body;
     const [adminCheck] = await db.execute(
-      `SELECT id FROM super_admin WHERE id = ?`,
+      `SELECT id,emp_id FROM super_admin WHERE id = ?`,
       [super_admin_id]
     );
 
@@ -743,6 +1023,33 @@ const UpdateSuperAdmin = async (req, res) => {
         success: false,
         message: "Super Admin not found",
       });
+    }
+
+    const currentEmployee = adminCheck[0];
+    if (emp_id) {
+      const empIdRegex = /^\d{4}$/;
+      if (!empIdRegex.test(emp_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Employee ID must be exactly 4 digits (e.g., 0004, 0005)",
+        });
+      }
+
+      console.log("currentEmployee",currentEmployee)
+      if (emp_id !== currentEmployee.emp_id.toString().padStart(4, '0') || emp_id == null) {
+        const [existingEmpId] = await db.execute(
+          `SELECT emp_id FROM super_admin 
+           WHERE emp_id = ?`,
+          [emp_id]
+        );
+
+        if (existingEmpId.length > 0) {
+          return res.status(409).json({
+            success: false,
+            message: `Employee ID ${emp_id} is already taken. Please choose another ID.`,
+          });
+        }
+      }
     }
 
     // Email uniqueness check
@@ -895,8 +1202,10 @@ module.exports = {
   GetAllEmployeesBySimpleList,
   uploadUserImage,
   // =========================
+  GenratedSuperAdminEmpId,
+  CreateSuperAdmin,
   GetSuperAdminById,
   UpdateSuperAdmin,
-  uploadSuperAdminImage
+  uploadSuperAdminImage,
 };
 
