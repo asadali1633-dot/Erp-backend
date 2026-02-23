@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { SignupFunction,RefreshToken, SignInUser, signupWithCompany} = require("../controllers/SignUp/index");
 const { GetUser,UpdateCompany, GetCompanyByAdmin } = require("../controllers/company/index")
-const { CreateHardware,GetAllHardware,UpdateHardware, GetHardwareById, DeleteHardware, generateUniqueBarcode } = require("../controllers/assets/hardware/index")
+const { CreateHardware,GetAllHardware,UpdateHardware, GetHardwareById, DeleteHardware, generateUniqueBarcode, createAssets } = require("../controllers/assets/hardware/index")
 const { CreateSoftware, GetAllSoftware, GetSoftwareById, UpdateSoftware, DeleteSoftware } = require("../controllers/assets/Software/index")
 const upload = require("../controllers/filemulters/projectMulter"); 
 const { GetAllBrandsManufacturer, CreateBrand } = require("../controllers/Brand");
@@ -117,6 +117,14 @@ router.get(
     verifyToken,
     tenantDbMiddleware,
     generateUniqueBarcode
+);
+router.post(
+    '/api/assests/create-assets',
+    verifyToken,
+    tenantDbMiddleware,
+    setUploadConfig("assets",  ["image/jpeg", "image/png","image/jpg"]),
+    upload.single('image'),
+    createAssets
 );
 
 router.post('/api/hardware/CreateHardware',

@@ -420,9 +420,132 @@ const generateUniqueBarcode = async (req, res) => {
     }
 };
 
+const createAssets = async (req, res) => {
+    try {
+        const db = req.db;
+        const created_by = req.user.id;
+        const { 
+            asset_tag,
+            asset_type,
+            field_values,
+        } = req.body;
+
+        if (!asset_tag) {
+            return res.status(400).json({
+                success: false,
+                message: 'Required fields: asset_tag, name'
+            });
+        }
+
+        const [existing] = await db.query(
+            'SELECT id FROM assets WHERE asset_tag = ?',
+            [asset_tag]
+        );
+
+        if (existing.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Asset tag already exists'
+            });
+        }
+
+        const [category] = await db.query(
+            'SELECT id, name, fields_definition FROM asset_categories WHERE name = ?',
+            [asset_type]
+        );
+
+        if (category.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Laptop category not found in database'
+            });
+        }
+
+        const uploadedFiles = [];
+        if (req.files && req.files.length > 0) {
+            req.files.forEach(file => {
+                const fileInfo = {
+                    filename: file.filename,
+                    originalName: file.originalname,
+                    path: file.path,
+                    size: file.size,
+                    mimetype: file.mimetype,
+                    url: `/uploads/assets/${req.file.filename}`
+                };
+                uploadedFiles.push(fileInfo);
+            });
+        } else if (req.file) {
+            const fileInfo = {
+                filename: req.file.filename,
+                originalName: req.file.originalname,
+                path: req.file.path,
+                size: req.file.size,
+                mimetype: req.file.mimetype,
+                url: `/uploads/assets/${req.file.filename}`
+            };
+            uploadedFiles.push(fileInfo);
+        }
+
+        if (uploadedFiles.length > 0) {
+            parsedFieldValues.attachments = uploadedFiles;
+            parsedFieldValues.has_attachments = true;
+            parsedFieldValues.attachment_count = uploadedFiles.length;
+        }
+
+        const category_id = category[0].id;
+
+        const [result] = await db.query(
+            `INSERT INTO assets 
+            (asset_tag, category_id, name, field_values) 
+            VALUES (?, ?, ?, ?)`,
+            [
+                asset_tag, 
+                category_id, 
+                asset_type, 
+                JSON.stringify(field_values || {})
+            ]
+        );
+
+        const [assets] = await db.query(
+            `SELECT a.*, ac.name as category_name 
+             FROM assets a
+             JOIN asset_categories ac ON a.category_id = ac.id
+             WHERE a.id = ?`,
+            [result.insertId]
+        );
+
+        if (assets[0].field_values) {
+            assets[0].field_values = JSON.parse(assets[0].field_values);
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `${asset_type} created successfully`,
+            data: {
+                id: assets[0].id,
+                asset_tag: assets[0].asset_tag,
+                type: asset_type,
+                name: assets[0].name,
+                status: assets[0].status,
+                details: assets[0].field_values,
+                created_at: assets[0].created_at
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating laptop:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 
 module.exports = {
     generateUniqueBarcode,
+    createAssets,
+    // ==========================
     CreateHardware,
     GetAllHardware,
     UpdateHardware,
