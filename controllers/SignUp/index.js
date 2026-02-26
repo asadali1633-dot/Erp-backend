@@ -101,7 +101,7 @@ const signupWithCompany = async (req, res) => {
     const [adminResult] = await tenantDb.execute(
       `INSERT INTO super_admin
         (first_name, last_name, email, password,emp_id,user_type)
-        VALUES (?, ?, ?, ?,?)`,
+        VALUES (?, ?, ?, ?,?,?)`,
       [firstName, lastName, email, hashedPassword, "0004","Super_admin"]
     );
 

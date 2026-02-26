@@ -321,36 +321,9 @@ const createTenantTables = async (tenantDb) => {
       );
   `)
 
-  // ==================== ASSETS TABLE ====================
-  await tenantDb.execute(`
-    CREATE TABLE IF NOT EXISTS assets (
-          id INT PRIMARY KEY AUTO_INCREMENT,
-          asset_tag VARCHAR(50) UNIQUE NOT NULL,
-          category_id INT NOT NULL,
-          name VARCHAR(200) NOT NULL,
-          status ENUM( 'New','In Use','In Stock/Spare','In Repair','Retired','Lost/Stolen','Disposed') DEFAULT 'In Use',
-          assigned_to_emp_id INT NULL,
-          assigned_to_admin_id INT NULL,
-          assigned_at TIMESTAMP NULL,
-          field_values JSON NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          created_by INT NULL,
-          
-          FOREIGN KEY (category_id) REFERENCES asset_categories(id) ON DELETE RESTRICT,
-          FOREIGN KEY (assigned_to_emp_id) REFERENCES employee_info(id) ON DELETE SET NULL,
-          FOREIGN KEY (assigned_to_admin_id) REFERENCES super_admin(id) ON DELETE SET NULL,
-          FOREIGN KEY (created_by) REFERENCES super_admin(id) ON DELETE SET NULL,
-          
 
-          CONSTRAINT check_single_assignment CHECK (
-              (assigned_to_emp_id IS NOT NULL AND assigned_to_admin_id IS NULL) OR
-              (assigned_to_emp_id IS NULL AND assigned_to_admin_id IS NOT NULL) OR
-              (assigned_to_emp_id IS NULL AND assigned_to_admin_id IS NULL)
-        )
-      ) 
-  `);
 
+  // ==================== asset_categories TABLE ====================
   await tenantDb.execute(`
       CREATE TABLE IF NOT EXISTS asset_categories (
           id INT PRIMARY KEY AUTO_INCREMENT,
@@ -360,14 +333,12 @@ const createTenantTables = async (tenantDb) => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );  
   `)
-
   const [catCount] = await tenantDb.execute(
     "SELECT COUNT(*) AS count FROM asset_categories"
   );
-
   if (catCount[0].count === 0) {
 
-    // Laptop Category
+    // ==================== LAPTOP CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Laptop', 'Company laptops and notebooks with complete details', 
@@ -657,19 +628,18 @@ const createTenantTables = async (tenantDb) => {
           "section": "main"
         }
       ]
-    }
-')
+    }')
   `);
-
-    // Desktop Category
-    await tenantDb.execute(`
+  
+     // ==================== DESKTOP CATEGORY (FIXED) ====================
+     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
-    ('Desktop'', 'Company Desktop and notebooks with complete details', 
+    ('Desktop', 'Company Desktop and notebooks with complete details', 
     '{
       "sections": [
         {
           "id": "main",
-          "label": "Laptop Details",
+          "label": "Desktop Details",
           "order": 1
         }
       ],
@@ -951,11 +921,10 @@ const createTenantTables = async (tenantDb) => {
           "section": "main"
         }
       ]
-    }
-')
+    }')
   `);
 
-    // Phone Category
+    // ==================== PHONE CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Phone', 'Company mobile phones with complete details', 
@@ -1809,7 +1778,7 @@ const createTenantTables = async (tenantDb) => {
     }')
   `);
 
-    // Tablet Category
+    // ==================== TABLET CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Tablet', 'Company Tablet with complete details', 
@@ -1817,7 +1786,7 @@ const createTenantTables = async (tenantDb) => {
       "sections": [
         {
           "id": "main",
-          "label": "Phone Details",
+          "label": "Tablet Details",
           "order": 1
         }
       ],
@@ -2663,7 +2632,7 @@ const createTenantTables = async (tenantDb) => {
     }')
   `);
 
-    // Server Category
+    // ==================== SERVER CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Server', 'Company Server with complete details', 
@@ -3357,7 +3326,7 @@ const createTenantTables = async (tenantDb) => {
     }')
   `);
 
-    // Car Category
+    // ==================== CAR CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Car', 'Company vehicles and cars with complete details', 
@@ -4047,7 +4016,7 @@ const createTenantTables = async (tenantDb) => {
         },
         {
           "name": "owners_manual_location",
-          "label": "Owner's Manual Location",
+          "label": "Owner''s Manual Location",
           "type": "text",
           "required": true,
           "section": "main"
@@ -4148,7 +4117,7 @@ const createTenantTables = async (tenantDb) => {
     }')
   `);
 
-    // Bicycle Category
+    // ==================== BICYCLE CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Bicycle', 'Company bicycles with complete details', 
@@ -4638,7 +4607,7 @@ const createTenantTables = async (tenantDb) => {
         },
         {
           "name": "owners_manual_location",
-          "label": "Owner's Manual Location",
+          "label": "Owner''s Manual Location",
           "type": "text",
           "required": true,
           "section": "main"
@@ -4738,7 +4707,7 @@ const createTenantTables = async (tenantDb) => {
     }')
   `);
 
-    // Networking Equipment Category
+    // ==================== NETWORKING EQUIPMENT CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
     ('Networking', 'Networking equipment including switches, routers, firewalls and access points', 
@@ -5455,729 +5424,758 @@ const createTenantTables = async (tenantDb) => {
     }')
   `);
 
-    // Furniture Category
+    // ==================== FURNITURE CATEGORY ====================
     await tenantDb.execute(`
-  INSERT INTO asset_categories (name, description, fields_definition) VALUES 
-  ('Furniture', 'Office furniture including desks, chairs, cabinets and other furnishings', 
-  '{
-    "sections": [
-      {
-        "id": "main",
-        "label": "Furniture Details",
-        "order": 1
-      }
-    ],
-    "fields": [
-      {
-        "name": "asset_tag",
-        "label": "Assets Tag/ID",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "item_type",
-        "label": "Item Type",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Desk", "Chair", "Cabinet", "Bookshelf", "Table", "Sofa", "Whiteboard", "Filing-Cabinet", "Conference-Table", "Office-Partition", "Storage-Shelf", "Reception-Desk", "Workstation", "Ergonomic-Chair", "Coffee-Table", "Monitor-Stand", "other"]
-      },
-      {
-        "name": "category",
-        "label": "Category",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Seating", "Storage", "Workstation", "Meeting", "Collaborative", "Recreational", "Office-Desk", "Conference", "Reception", "Filing", "Display", "Ergonomic"]
-      },
-      {
-        "name": "brand_manufacturer",
-        "label": "Brand Manufacturer",
-        "type": "select",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "model_product_line",
-        "label": "Model/Product Line",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "serial_number",
-        "label": "Serial Number/Product Code",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "color_finish",
-        "label": "Color/Finish",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "material",
-        "label": "Material",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Wood", "Metal", "Glass", "Fabric", "Laminate", "Composite", "Plastic", "Leather", "Vinyl", "MDF", "Particle-Board", "Mesh", "Mixed"]
-      },
-      {
-        "name": "dimensions",
-        "label": "Dimensions",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "weight",
-        "label": "Weight",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "assembly_required",
-        "label": "Assembly Required",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Yes", "No", "Partially-Assembled", "Professional-Assembly", "Tool-Free-Assembly"]
-      },
-      {
-        "name": "assembly_instructions_location",
-        "label": "Assembly Instructions Location",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "modular_configurable",
-        "label": "Modular/Configurable",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Yes", "No", "Panel-System", "Modular-Desk", "Configurable-Layout", "Add-on-Components"]
-      },
-      {
-        "name": "number_of_pieces",
-        "label": "Number of Pieces/Components",
-        "type": "number",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "weight_capacity",
-        "label": "Weight Capacity",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "ergonomic_certification",
-        "label": "Ergonomic Certification",
-        "type": "multiselect",
-        "required": false,
-        "section": "main",
-        "options": ["BIFMA", "ANSI", "ISO-9241", "GREENGUARD", "EU-Ergonomic", "OSHA-Compliant", "No-Certification"]
-      },
-      {
-        "name": "fire_safety_rating",
-        "label": "Fire Safety Rating",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "current_location",
-        "label": "Current Location",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "assigned_to",
-        "label": "Assigned To",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "assignment_date",
-        "label": "Assignment Date",
-        "type": "date",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "shared_common_area",
-        "label": "Shared/Common Area",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Yes", "No", "Department-Shared", "Team-Area", "Conference-Only", "Hot-Desk"]
-      },
-      {
-        "name": "space_floor_plan_ref",
-        "label": "Space/Floor Plan Reference",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "previous_location",
-        "label": "Previous Location",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "storage_location",
-        "label": "Storage Location",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "po_number",
-        "label": "Purchase Order Number",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "vendor_dealer",
-        "label": "Vendor/Dealer",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "purchase_date",
-        "label": "Purchase Date",
-        "type": "date",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "purchase_cost",
-        "label": "Purchase Cost",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "delivery_date",
-        "label": "Delivery Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "installation_date",
-        "label": "Installation Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "delivery_installation_cost",
-        "label": "Delivery/Installation Cost",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "cost_center",
-        "label": "Cost Center/Department Budget",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "expenditure_type",
-        "label": "Capital/Operational Expenditure",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["CapEx", "OpEx", "Both", "Lease", "Rental"]
-      },
-      {
-        "name": "condition_status",
-        "label": "Condition Status",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["New", "Excellent", "Good", "Fair", "Poor", "Damaged", "Under-Repair", "Obsolete"]
-      },
-      {
-        "name": "condition_notes",
-        "label": "Condition Notes",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "last_inspection_date",
-        "label": "Last Inspection Date",
-        "type": "date",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "next_inspection_date",
-        "label": "Next Inspection Date",
-        "type": "date",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "cleaning_schedule",
-        "label": "Cleaning/Maintenance Schedule",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "last_cleaning_date",
-        "label": "Last Cleaning Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "warranty_info",
-        "label": "Warranty Information",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "warranty_expiry",
-        "label": "Warranty Expiry Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "repair_history",
-        "label": "Repair History",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "cleaning_instructions",
-        "label": "Cleaning Instructions/Chemicals",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "adjustable_height",
-        "label": "Adjustable Height",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Yes", "No", "Pneumatic", "Mechanical", "Electric"]
-      },
-      {
-        "name": "lumbar_support",
-        "label": "Lumbar Support",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "armrests",
-        "label": "Armrests",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Adjustable", "Fixed", "None", "3D-Adjustable", "4D-Adjustable", "Padded", "Flip-up"]
-      },
-      {
-        "name": "seat_depth_width",
-        "label": "Seat Depth/Width",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "tilt_mechanism",
-        "label": "Tilt Mechanism",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Knee-Tilt", "Center-Tilt", "Synchro-Tilt", "Multi-Tilt", "Rocking", "No-Tilt", "Lockable"]
-      },
-      {
-        "name": "casters_type",
-        "label": "Casters/Wheels Type",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Hard-Floor", "Carpet", "Dual-Wheel", "Locking", "Rubber", "Polyurethane", "No-Casters", "Glides"]
-      },
-      {
-        "name": "gas_lift_functioning",
-        "label": "Gas Lift Functioning",
-        "type": "select",
-        "required": false,
-        "section": "main",
-        "options": ["Yes", "No", "Not-Applicable", "Needs-Replacement", "Class-3", "Class-4"]
-      },
-      {
-        "name": "ada_compliant",
-        "label": "ADA Compliant",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Yes", "No", "Adaptable", "Pending"]
-      },
-      {
-        "name": "standing_desk_feature",
-        "label": "Standing Desk Feature",
-        "type": "select",
-        "required": false,
-        "section": "main",
-        "options": ["Electric", "Manual-Crank", "Pneumatic", "Fixed", "Desktop-Riser", "Not-Desk"]
-      },
-      {
-        "name": "number_of_drawers",
-        "label": "Number of Drawers",
-        "type": "number",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "locking_mechanism",
-        "label": "Locking Mechanism",
-        "type": "select",
-        "required": false,
-        "section": "main",
-        "options": ["Key-Lock", "Combination", "Digital-Keypad", "Biometric", "Cam-Lock", "Central-Locking", "No-Lock", "Master-Keyed", "RFID"]
-      },
-      {
-        "name": "number_of_keys",
-        "label": "Number of Keys",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "shelf_adjustability",
-        "label": "Shelf Adjustability",
-        "type": "select",
-        "required": false,
-        "section": "main",
-        "options": ["Adjustable", "Fixed", "Semi-Adjustable", "Removable", "Sliding", "No-Shelves", "Not-Applicable"]
-      },
-      {
-        "name": "fireproof_rating",
-        "label": "Fireproof/Waterproof Rating",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "file_hanging_capacity",
-        "label": "File Hanging Capacity",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "expected_lifespan",
-        "label": "Expected Lifespan",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "depreciation_schedule",
-        "label": "Depreciation Schedule",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Straight-Line", "Accelerated", "Double-Declining", "Sum-of-Years", "MACRS", "No-Depreciation"]
-      },
-      {
-        "name": "current_book_value",
-        "label": "Current Book Value",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "replacement_cost_estimate",
-        "label": "Replacement Cost Estimate",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "planned_replacement_date",
-        "label": "Planned Replacement Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "furniture_status",
-        "label": "Status",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Active", "In-Repair", "Surplus", "Retired", "Donated", "Sold", "In-Storage", "Pending-Disposal"]
-      },
-      {
-        "name": "retirement_reason",
-        "label": "Retirement Reason",
-        "type": "select",
-        "required": false,
-        "section": "main",
-        "options": ["Worn-Out", "Damaged", "Outdated", "Surplus", "Replaced", "Office-Renovation", "Space-Optimization", "Donated", "Sold", "Not-Retired"]
-      },
-      {
-        "name": "safety_inspection_date",
-        "label": "Safety Inspection Date",
-        "type": "date",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "safety_issues",
-        "label": "Safety Issues/Concerns",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "recall_status",
-        "label": "Recall Status",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["No-Recall", "Under-Investigation", "Recall-Announced", "Remedied", "Pending-Action", "Not-Checked"]
-      },
-      {
-        "name": "weight_limit_labels",
-        "label": "Load/Weight Limit Labels",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Visible", "Applied", "Faded", "Missing", "Not-Applicable"]
-      },
-      {
-        "name": "assembly_safety_check",
-        "label": "Assembly Safety Check",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "electrical_certification",
-        "label": "Electrical Certification",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "equipment_type",
-        "label": "Equipment Type",
-        "type": "select",
-        "required": true,
-        "section": "main",
-        "options": ["Copier", "Printer", "Shredder", "Water-Cooler", "Microwave", "Refrigerator", "Dishwasher", "Coffee-Machine", "Vending-Machine", "Ice-Maker", "Air-Purifier", "Paper-Shredder", "Scanner", "Fax-Machine", "other"]
-      },
-      {
-        "name": "power_requirements",
-        "label": "Power Requirements",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "service_contract_number",
-        "label": "Service Contract Number",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "service_provider",
-        "label": "Service Provider",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "service_contract_expiry",
-        "label": "Service Contract Expiry",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "supplies_consumables",
-        "label": "Supplies/Consumables",
-        "type": "textarea",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "monthly_service_cost",
-        "label": "Monthly Service/Lease Cost",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "usage_meter",
-        "label": "Copy Count/Usage Meter",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "disposal_date",
-        "label": "Disposal Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "disposal_method",
-        "label": "Disposal Method",
-        "type": "select",
-        "required": false,
-        "section": "main",
-        "options": ["Sold", "Donated", "Recycled", "Landfill", "Trade-In", "Return-to-Vendor", "E-Waste", "Asset-Liquidation", "Not-Disposed"]
-      },
-      {
-        "name": "disposal_certificate",
-        "label": "Disposal Certificate",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "recyclable_materials",
-        "label": "Recyclable Materials",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "environmental_certification",
-        "label": "Environmental Certification",
-        "type": "multiselect",
-        "required": false,
-        "section": "main",
-        "options": ["FSC", "GREENGUARD", "Energy-Star", "EPEAT", "RoHS", "WEEE", "Cradle-to-Cradle", "BIFMA", "No-Certification"]
-      },
-      {
-        "name": "donation_recipient",
-        "label": "Donation Recipient",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "resale_value",
-        "label": "Resale Value Received",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "disposal_cost",
-        "label": "Disposal Cost",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "asset_photos",
-        "label": "Asset Photos",
-        "type": "file",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "manual_location",
-        "label": "Manual/Documentation Location",
-        "type": "text",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "assembly_diagram_ref",
-        "label": "Assembly Diagram Reference",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "record_created_by",
-        "label": "Record Created By",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "record_created_date",
-        "label": "Record Created Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "last_updated_by",
-        "label": "Last Updated By",
-        "type": "text",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "last_updated_date",
-        "label": "Last Updated Date",
-        "type": "date",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "audit_date",
-        "label": "Audit/Inventory Date",
-        "type": "date",
-        "required": true,
-        "section": "main"
-      },
-      {
-        "name": "notes",
-        "label": "Notes/Comments",
-        "type": "textarea",
-        "required": false,
-        "section": "main"
-      },
-      {
-        "name": "attachments",
-        "label": "Attachments",
-        "type": "file",
-        "required": true,
-        "section": "main"
-      }
-    ]
-  }')
+    INSERT INTO asset_categories (name, description, fields_definition) VALUES 
+    ('Furniture', 'Office furniture including desks, chairs, cabinets and other furnishings', 
+    '{
+      "sections": [
+        {
+          "id": "main",
+          "label": "Furniture Details",
+          "order": 1
+        }
+      ],
+      "fields": [
+        {
+          "name": "asset_tag",
+          "label": "Assets Tag/ID",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "item_type",
+          "label": "Item Type",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Desk", "Chair", "Cabinet", "Bookshelf", "Table", "Sofa", "Whiteboard", "Filing-Cabinet", "Conference-Table", "Office-Partition", "Storage-Shelf", "Reception-Desk", "Workstation", "Ergonomic-Chair", "Coffee-Table", "Monitor-Stand", "other"]
+        },
+        {
+          "name": "category",
+          "label": "Category",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Seating", "Storage", "Workstation", "Meeting", "Collaborative", "Recreational", "Office-Desk", "Conference", "Reception", "Filing", "Display", "Ergonomic"]
+        },
+        {
+          "name": "brand_manufacturer",
+          "label": "Brand Manufacturer",
+          "type": "select",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "model_product_line",
+          "label": "Model/Product Line",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "serial_number",
+          "label": "Serial Number/Product Code",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "color_finish",
+          "label": "Color/Finish",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "material",
+          "label": "Material",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Wood", "Metal", "Glass", "Fabric", "Laminate", "Composite", "Plastic", "Leather", "Vinyl", "MDF", "Particle-Board", "Mesh", "Mixed"]
+        },
+        {
+          "name": "dimensions",
+          "label": "Dimensions",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "weight",
+          "label": "Weight",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "assembly_required",
+          "label": "Assembly Required",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Yes", "No", "Partially-Assembled", "Professional-Assembly", "Tool-Free-Assembly"]
+        },
+        {
+          "name": "assembly_instructions_location",
+          "label": "Assembly Instructions Location",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "modular_configurable",
+          "label": "Modular/Configurable",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Yes", "No", "Panel-System", "Modular-Desk", "Configurable-Layout", "Add-on-Components"]
+        },
+        {
+          "name": "number_of_pieces",
+          "label": "Number of Pieces/Components",
+          "type": "number",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "weight_capacity",
+          "label": "Weight Capacity",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "ergonomic_certification",
+          "label": "Ergonomic Certification",
+          "type": "multiselect",
+          "required": false,
+          "section": "main",
+          "options": ["BIFMA", "ANSI", "ISO-9241", "GREENGUARD", "EU-Ergonomic", "OSHA-Compliant", "No-Certification"]
+        },
+        {
+          "name": "fire_safety_rating",
+          "label": "Fire Safety Rating",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "current_location",
+          "label": "Current Location",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "assigned_to",
+          "label": "Assigned To",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "assignment_date",
+          "label": "Assignment Date",
+          "type": "date",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "shared_common_area",
+          "label": "Shared/Common Area",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Yes", "No", "Department-Shared", "Team-Area", "Conference-Only", "Hot-Desk"]
+        },
+        {
+          "name": "space_floor_plan_ref",
+          "label": "Space/Floor Plan Reference",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "previous_location",
+          "label": "Previous Location",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "storage_location",
+          "label": "Storage Location",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "po_number",
+          "label": "Purchase Order Number",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "vendor_dealer",
+          "label": "Vendor/Dealer",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "purchase_date",
+          "label": "Purchase Date",
+          "type": "date",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "purchase_cost",
+          "label": "Purchase Cost",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "delivery_date",
+          "label": "Delivery Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "installation_date",
+          "label": "Installation Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "delivery_installation_cost",
+          "label": "Delivery/Installation Cost",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "cost_center",
+          "label": "Cost Center/Department Budget",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "expenditure_type",
+          "label": "Capital/Operational Expenditure",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["CapEx", "OpEx", "Both", "Lease", "Rental"]
+        },
+        {
+          "name": "condition_status",
+          "label": "Condition Status",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["New", "Excellent", "Good", "Fair", "Poor", "Damaged", "Under-Repair", "Obsolete"]
+        },
+        {
+          "name": "condition_notes",
+          "label": "Condition Notes",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "last_inspection_date",
+          "label": "Last Inspection Date",
+          "type": "date",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "next_inspection_date",
+          "label": "Next Inspection Date",
+          "type": "date",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "cleaning_schedule",
+          "label": "Cleaning/Maintenance Schedule",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "last_cleaning_date",
+          "label": "Last Cleaning Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "warranty_info",
+          "label": "Warranty Information",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "warranty_expiry",
+          "label": "Warranty Expiry Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "repair_history",
+          "label": "Repair History",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "cleaning_instructions",
+          "label": "Cleaning Instructions/Chemicals",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "adjustable_height",
+          "label": "Adjustable Height",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Yes", "No", "Pneumatic", "Mechanical", "Electric"]
+        },
+        {
+          "name": "lumbar_support",
+          "label": "Lumbar Support",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "armrests",
+          "label": "Armrests",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Adjustable", "Fixed", "None", "3D-Adjustable", "4D-Adjustable", "Padded", "Flip-up"]
+        },
+        {
+          "name": "seat_depth_width",
+          "label": "Seat Depth/Width",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "tilt_mechanism",
+          "label": "Tilt Mechanism",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Knee-Tilt", "Center-Tilt", "Synchro-Tilt", "Multi-Tilt", "Rocking", "No-Tilt", "Lockable"]
+        },
+        {
+          "name": "casters_type",
+          "label": "Casters/Wheels Type",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Hard-Floor", "Carpet", "Dual-Wheel", "Locking", "Rubber", "Polyurethane", "No-Casters", "Glides"]
+        },
+        {
+          "name": "gas_lift_functioning",
+          "label": "Gas Lift Functioning",
+          "type": "select",
+          "required": false,
+          "section": "main",
+          "options": ["Yes", "No", "Not-Applicable", "Needs-Replacement", "Class-3", "Class-4"]
+        },
+        {
+          "name": "ada_compliant",
+          "label": "ADA Compliant",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Yes", "No", "Adaptable", "Pending"]
+        },
+        {
+          "name": "standing_desk_feature",
+          "label": "Standing Desk Feature",
+          "type": "select",
+          "required": false,
+          "section": "main",
+          "options": ["Electric", "Manual-Crank", "Pneumatic", "Fixed", "Desktop-Riser", "Not-Desk"]
+        },
+        {
+          "name": "number_of_drawers",
+          "label": "Number of Drawers",
+          "type": "number",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "locking_mechanism",
+          "label": "Locking Mechanism",
+          "type": "select",
+          "required": false,
+          "section": "main",
+          "options": ["Key-Lock", "Combination", "Digital-Keypad", "Biometric", "Cam-Lock", "Central-Locking", "No-Lock", "Master-Keyed", "RFID"]
+        },
+        {
+          "name": "number_of_keys",
+          "label": "Number of Keys",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "shelf_adjustability",
+          "label": "Shelf Adjustability",
+          "type": "select",
+          "required": false,
+          "section": "main",
+          "options": ["Adjustable", "Fixed", "Semi-Adjustable", "Removable", "Sliding", "No-Shelves", "Not-Applicable"]
+        },
+        {
+          "name": "fireproof_rating",
+          "label": "Fireproof/Waterproof Rating",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "file_hanging_capacity",
+          "label": "File Hanging Capacity",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "expected_lifespan",
+          "label": "Expected Lifespan",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "depreciation_schedule",
+          "label": "Depreciation Schedule",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Straight-Line", "Accelerated", "Double-Declining", "Sum-of-Years", "MACRS", "No-Depreciation"]
+        },
+        {
+          "name": "current_book_value",
+          "label": "Current Book Value",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "replacement_cost_estimate",
+          "label": "Replacement Cost Estimate",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "planned_replacement_date",
+          "label": "Planned Replacement Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "furniture_status",
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Active", "In-Repair", "Surplus", "Retired", "Donated", "Sold", "In-Storage", "Pending-Disposal"]
+        },
+        {
+          "name": "retirement_reason",
+          "label": "Retirement Reason",
+          "type": "select",
+          "required": false,
+          "section": "main",
+          "options": ["Worn-Out", "Damaged", "Outdated", "Surplus", "Replaced", "Office-Renovation", "Space-Optimization", "Donated", "Sold", "Not-Retired"]
+        },
+        {
+          "name": "safety_inspection_date",
+          "label": "Safety Inspection Date",
+          "type": "date",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "safety_issues",
+          "label": "Safety Issues/Concerns",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "recall_status",
+          "label": "Recall Status",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["No-Recall", "Under-Investigation", "Recall-Announced", "Remedied", "Pending-Action", "Not-Checked"]
+        },
+        {
+          "name": "weight_limit_labels",
+          "label": "Load/Weight Limit Labels",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Visible", "Applied", "Faded", "Missing", "Not-Applicable"]
+        },
+        {
+          "name": "assembly_safety_check",
+          "label": "Assembly Safety Check",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "electrical_certification",
+          "label": "Electrical Certification",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "equipment_type",
+          "label": "Equipment Type",
+          "type": "select",
+          "required": true,
+          "section": "main",
+          "options": ["Copier", "Printer", "Shredder", "Water-Cooler", "Microwave", "Refrigerator", "Dishwasher", "Coffee-Machine", "Vending-Machine", "Ice-Maker", "Air-Purifier", "Paper-Shredder", "Scanner", "Fax-Machine", "other"]
+        },
+        {
+          "name": "power_requirements",
+          "label": "Power Requirements",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "service_contract_number",
+          "label": "Service Contract Number",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "service_provider",
+          "label": "Service Provider",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "service_contract_expiry",
+          "label": "Service Contract Expiry",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "supplies_consumables",
+          "label": "Supplies/Consumables",
+          "type": "textarea",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "monthly_service_cost",
+          "label": "Monthly Service/Lease Cost",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "usage_meter",
+          "label": "Copy Count/Usage Meter",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "disposal_date",
+          "label": "Disposal Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "disposal_method",
+          "label": "Disposal Method",
+          "type": "select",
+          "required": false,
+          "section": "main",
+          "options": ["Sold", "Donated", "Recycled", "Landfill", "Trade-In", "Return-to-Vendor", "E-Waste", "Asset-Liquidation", "Not-Disposed"]
+        },
+        {
+          "name": "disposal_certificate",
+          "label": "Disposal Certificate",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "recyclable_materials",
+          "label": "Recyclable Materials",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "environmental_certification",
+          "label": "Environmental Certification",
+          "type": "multiselect",
+          "required": false,
+          "section": "main",
+          "options": ["FSC", "GREENGUARD", "Energy-Star", "EPEAT", "RoHS", "WEEE", "Cradle-to-Cradle", "BIFMA", "No-Certification"]
+        },
+        {
+          "name": "donation_recipient",
+          "label": "Donation Recipient",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "resale_value",
+          "label": "Resale Value Received",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "disposal_cost",
+          "label": "Disposal Cost",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "asset_photos",
+          "label": "Asset Photos",
+          "type": "file",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "manual_location",
+          "label": "Manual/Documentation Location",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "assembly_diagram_ref",
+          "label": "Assembly Diagram Reference",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "record_created_by",
+          "label": "Record Created By",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "record_created_date",
+          "label": "Record Created Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "last_updated_by",
+          "label": "Last Updated By",
+          "type": "text",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "last_updated_date",
+          "label": "Last Updated Date",
+          "type": "date",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "audit_date",
+          "label": "Audit/Inventory Date",
+          "type": "date",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "notes",
+          "label": "Notes/Comments",
+          "type": "textarea",
+          "required": false,
+          "section": "main"
+        },
+        {
+          "name": "attachments",
+          "label": "Attachments",
+          "type": "file",
+          "required": true,
+          "section": "main"
+        }
+      ]
+    }')
   `);
-
   }
+
+  // ==================== ASSETS TABLE ====================
+  await tenantDb.execute(`
+    CREATE TABLE IF NOT EXISTS assets (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          asset_tag VARCHAR(50) UNIQUE NOT NULL,
+          category_id INT NOT NULL,
+          name VARCHAR(200) NOT NULL,
+          status ENUM( 'New','In Use','In Stock/Spare','In Repair','Retired','Lost/Stolen','Disposed') DEFAULT 'In Use',
+          assigned_to_emp_id INT NULL,
+          assigned_to_admin_id INT NULL,
+          assigned_at TIMESTAMP NULL,
+          field_values JSON NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          created_by INT NULL,
+          
+          FOREIGN KEY (category_id) REFERENCES asset_categories(id) ON DELETE RESTRICT,
+          FOREIGN KEY (assigned_to_emp_id) REFERENCES employee_info(id) ON DELETE SET NULL,
+          FOREIGN KEY (assigned_to_admin_id) REFERENCES super_admin(id) ON DELETE SET NULL,
+          FOREIGN KEY (created_by) REFERENCES super_admin(id) ON DELETE SET NULL,
+          
+
+          CONSTRAINT check_single_assignment CHECK (
+              (assigned_to_emp_id IS NOT NULL AND assigned_to_admin_id IS NULL) OR
+              (assigned_to_emp_id IS NULL AND assigned_to_admin_id IS NOT NULL) OR
+              (assigned_to_emp_id IS NULL AND assigned_to_admin_id IS NULL)
+        )
+      ) 
+  `);
 
   // ==================== SOFTWARE TABLE ====================
   await tenantDb.execute(`

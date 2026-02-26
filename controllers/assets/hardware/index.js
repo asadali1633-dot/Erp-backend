@@ -694,19 +694,24 @@ const getAssetById = async (req, res) => {
         }
 
         
+        const responseData = [{
+            id: asset.id,
+            asset_tag: asset.asset_tag,
+            category_id: asset.category_id,
+            category_name: asset.category_name,
+            name: asset.name,
+            status: asset.status,
+            field_values: fieldValues,
+            assigned_to: assignedTo,
+            assigned_at: asset.assigned_at,
+            created_at: asset.created_at,
+            updated_at: asset.updated_at,
+            created_by: asset.created_by
+        }];
 
         res.json({
             success: true,
-            data: {
-                id: asset.id,
-                asset_tag: asset.asset_tag,
-                category_id: asset.category_id,
-                category_name: asset.category_name,
-                name: asset.name,
-                status: asset.status,
-                field_values: fieldValues,
-                assigned_to: assignedTo,
-            }
+            data: responseData,
         });
 
     } catch (error) {
