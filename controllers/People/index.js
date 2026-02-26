@@ -361,46 +361,46 @@ const UpdatePeople = async (req, res) => {
 
 // Pending for reparing api
 const DeleteEmployees = async (req, res) => {
-  try {
-    const db = req.db;
-    let { ids } = req.body;
-    const admin_id = req.user.admin_id ? req.user.admin_id : req.user.id;
+  // try {
+  //   const db = req.db;
+  //   let { ids } = req.body;
+  //   const admin_id = req.user.admin_id ? req.user.admin_id : req.user.id;
 
-    if (!Array.isArray(ids)) {
-      ids = [ids];
-    }
+  //   if (!Array.isArray(ids)) {
+  //     ids = [ids];
+  //   }
 
-    if (!ids.length) {
-      return res.status(400).json({
-        success: false,
-        message: "No employee IDs provided",
-      });
-    }
+  //   if (!ids.length) {
+  //     return res.status(400).json({
+  //       success: false,
+  //       message: "No employee IDs provided",
+  //     });
+  //   }
 
-    const placeholders = ids.map(() => "?").join(",");
+  //   const placeholders = ids.map(() => "?").join(",");
 
-    const sql = `
-      DELETE FROM employee_info
-      WHERE id IN (${placeholders})
-      AND admin_id = ?
-    `;
+  //   const sql = `
+  //     DELETE FROM employee_info
+  //     WHERE id IN (${placeholders})
+  //     AND admin_id = ?
+  //   `;
 
-    const [result] = await db.execute(sql, [...ids, admin_id]);
+  //   const [result] = await db.execute(sql, [...ids, admin_id]);
 
-    return res.status(200).json({
-      success: true,
-      message: "Employee(s) deleted successfully",
-      deletedCount: result.affectedRows,
-    });
+  //   return res.status(200).json({
+  //     success: true,
+  //     message: "Employee(s) deleted successfully",
+  //     deletedCount: result.affectedRows,
+  //   });
 
-  } catch (error) {
-    console.error("DeleteEmployees Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error,
-    });
-  }
+  // } catch (error) {
+  //   console.error("DeleteEmployees Error:", error);
+  //   return res.status(500).json({
+  //     success: false,
+  //     message: "Server error",
+  //     error,
+  //   });
+  // }
 };
 
 const GetEmpByIdSearchWithPagination = async (req, res) => {
@@ -603,39 +603,51 @@ const GetEmployeeById = async (req, res) => {
   }
 };
 
-// Pending for reparing api
-const GetAllEmployeesBySimpleList = async (req, res) => {
-  // try {
-  //   const db = req.db;
-  //   const admin_id = req.user.admin_id ? req.user.admin_id : req.user.id;
 
-  //   const [rows] = await db.execute(
-  //     `SELECT 
-  //         e.id,
-  //         e.emp_id,
-  //         CONCAT(e.first_name, ' ', e.last_name) AS name,
-  //         e.email,
-  //         e.status
-  //      FROM employee_info e
-  //      WHERE e.admin_id = ?`,
-  //     [admin_id]
-  //   );
+const GetAlUsers = async (req, res) => {
+  try {
+    const db = req.db;
+    const companyId = req.user.company;
 
-  //   return res.status(200).json({
-  //     success: true,
-  //     employees: rows,
-  //   });
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID missing in token",
+      });
+    }
 
-  // } catch (error) {
-  //   console.error("GetAllEmployeesByAdmin Error:", error);
-  //   return res.status(500).json({
-  //     success: false,
-  //     message: "Server error",
-  //     error,
-  //   });
-  // }
+    const [users] = await db.execute(
+      `SELECT 
+        id,
+        CONCAT(first_name, ' ', last_name) AS name,
+        email
+      FROM employee_info
+      WHERE company_id = ?
+
+      UNION ALL
+
+      SELECT 
+        id,
+        CONCAT(first_name, ' ', last_name) AS name,
+        email
+      FROM super_admin`,
+      [companyId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: users
+    });
+
+  } catch (error) {
+    console.error("GetEmp Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
 };
-
 const uploadUserImage = async (req, res) => {
   try {
     const db = req.db;
@@ -839,7 +851,7 @@ const CreateSuperAdmin = async (req, res) => {
       )
     `;
 
-   
+
     const [result] = await db.execute(sql, [
       emp_id,
       first_name,
@@ -870,7 +882,7 @@ const CreateSuperAdmin = async (req, res) => {
       status || null
     ]);
 
-     await db.execute(
+    await db.execute(
       `INSERT INTO company_admin_access
         (company_id, super_admin_id, user_type, status)
       VALUES (?, ?, ?, ?)`,
@@ -1035,7 +1047,7 @@ const UpdateSuperAdmin = async (req, res) => {
         });
       }
 
-      console.log("currentEmployee",currentEmployee)
+      console.log("currentEmployee", currentEmployee)
       if (emp_id !== currentEmployee.emp_id.toString().padStart(4, '0') || emp_id == null) {
         const [existingEmpId] = await db.execute(
           `SELECT emp_id FROM super_admin 
@@ -1198,8 +1210,8 @@ module.exports = {
   UpdatePeople,
   DeleteEmployees,
   GetEmpByIdSearchWithPagination,
+  GetAlUsers,
   GetEmployeeById,
-  GetAllEmployeesBySimpleList,
   uploadUserImage,
   // =========================
   GenratedSuperAdminEmpId,

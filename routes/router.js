@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { SignupFunction,RefreshToken, SignInUser, signupWithCompany} = require("../controllers/SignUp/index");
 const { GetUser,UpdateCompany, GetCompanyByAdmin } = require("../controllers/company/index")
-const { CreateHardware,GetAllHardware,UpdateHardware, GetHardwareById, DeleteHardware, generateUniqueBarcode, createAssets } = require("../controllers/assets/hardware/index")
+const {generateUniqueBarcode, createAssets, getAllAssets, getAssetById } = require("../controllers/assets/hardware/index")
 const { CreateSoftware, GetAllSoftware, GetSoftwareById, UpdateSoftware, DeleteSoftware } = require("../controllers/assets/Software/index")
 const upload = require("../controllers/filemulters/projectMulter"); 
 const { GetAllBrandsManufacturer, CreateBrand } = require("../controllers/Brand");
@@ -13,7 +13,7 @@ const {resendOtp,verifyOtp, forgotPassSentOtp, updatePassword,} = require("../co
 const { CreateRoles, GetAllRoles } = require("../controllers/roles");
 const { CreateDesignation, GetAllDesignations } = require("../controllers/designations");
 const { SaveTheme, GetTheme } = require("../controllers/themes");
-const { GenratedEmpId, CreatePeople, GetEmpByIdSearchWithPagination, GetAllEmployeesBySimpleList, UpdatePeople, DeleteEmployees, UpdateSuperAdmin, uploadUserImage, GetSuperAdminById, uploadSuperAdminImage, GetEmployeeById, CreateSuperAdmin, GenratedSuperAdminEmpId } = require("../controllers/People");
+const { GenratedEmpId, CreatePeople, GetEmpByIdSearchWithPagination, UpdatePeople, DeleteEmployees, UpdateSuperAdmin, uploadUserImage, GetSuperAdminById, uploadSuperAdminImage, GetEmployeeById, CreateSuperAdmin, GenratedSuperAdminEmpId, GetAlUsers } = require("../controllers/People");
 const { syncModules } = require("../controllers/Modules/DataSeeder");
 const {checkPermission} = require("../middlewares/PermissionModule");
 const tenantDbMiddleware = require("../middlewares/tenantDbMiddleware");
@@ -122,39 +122,46 @@ router.post(
     '/api/assests/create-assets',
     verifyToken,
     tenantDbMiddleware,
+    checkPermission("hardware_create"),
     setUploadConfig("assets",  ["image/jpeg", "image/png","image/jpg"]),
     upload.single('image'),
     createAssets
 );
 
-router.post('/api/hardware/CreateHardware',
-    verifyToken,
-    tenantDbMiddleware,
-    checkPermission("hardware_create"),
-    CreateHardware)
-
-router.get('/api/hardware/GetAllHardware',
-    verifyToken,
-    tenantDbMiddleware,
+router.get(
+    '/api/assets/getAll/assets', 
+    verifyToken, 
+    tenantDbMiddleware, 
     checkPermission("hardware_view"),
-    GetAllHardware)
+    getAllAssets
+);
 
-router.put('/api/hardware/UpdateHardware/:id',
-    verifyToken,
-    tenantDbMiddleware,
-    checkPermission("hardware_update"),
-    UpdateHardware)
+router.get(
+    '/api/get/all/assets/:id', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    getAssetById
+);
 
-router.get("/api/get/all/hardware/:id", 
-    verifyToken,
-    tenantDbMiddleware,
-    GetHardwareById);
 
-router.post('/api/Hardware/DeleteHardware',
-    verifyToken,
-    tenantDbMiddleware,
-    checkPermission("hardware_delete"),
-    DeleteHardware);
+
+
+// router.put('/api/hardware/UpdateHardware/:id',
+//     verifyToken,
+//     tenantDbMiddleware,
+//     checkPermission("hardware_update"),
+//     UpdateHardware)
+
+// router.get("/api/get/all/hardware/:id", 
+//     verifyToken,
+//     tenantDbMiddleware,
+//     GetHardwareById);
+
+// router.post('/api/Hardware/DeleteHardware',
+//     verifyToken,
+//     tenantDbMiddleware,
+//     checkPermission("hardware_delete"),
+//     DeleteHardware);
 
 
 // SOFTWARE ROUTES ========================================
@@ -284,10 +291,10 @@ router.get("/api/GetSuperAdminById/:id",
     tenantDbMiddleware,
     GetSuperAdminById);
 
-router.get("/api/GetAllEmployeesBySimpleList",
+router.get("/api/GetAllUsers",
     verifyToken,
     tenantDbMiddleware,
-    GetAllEmployeesBySimpleList);
+    GetAlUsers);
 
 
 
