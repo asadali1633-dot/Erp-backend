@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { SignupFunction,RefreshToken, SignInUser, signupWithCompany} = require("../controllers/SignUp/index");
 const { GetUser,UpdateCompany, GetCompanyByAdmin } = require("../controllers/company/index")
-const {generateUniqueBarcode, createAssets, getAllAssets, getAssetById } = require("../controllers/assets/hardware/index")
+const {generateUniqueBarcode, createAssets, getAllAssets, getAssetById, updateAsset } = require("../controllers/assets/hardware/index")
 const { CreateSoftware, GetAllSoftware, GetSoftwareById, UpdateSoftware, DeleteSoftware } = require("../controllers/assets/Software/index")
 const upload = require("../controllers/filemulters/projectMulter"); 
 const { GetAllBrandsManufacturer, CreateBrand } = require("../controllers/Brand");
@@ -143,19 +143,15 @@ router.get(
     getAssetById
 );
 
-
-
-
-// router.put('/api/hardware/UpdateHardware/:id',
-//     verifyToken,
-//     tenantDbMiddleware,
-//     checkPermission("hardware_update"),
-//     UpdateHardware)
-
-// router.get("/api/get/all/hardware/:id", 
-//     verifyToken,
-//     tenantDbMiddleware,
-//     GetHardwareById);
+router.put(
+    '/api/assets/update/:id', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    checkPermission("hardware_update"),
+    setUploadConfig("assets",  ["image/jpeg", "image/png","image/jpg"]),
+    upload.single('image'),
+    updateAsset
+);
 
 // router.post('/api/Hardware/DeleteHardware',
 //     verifyToken,

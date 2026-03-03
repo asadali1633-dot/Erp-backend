@@ -635,8 +635,7 @@ const getAssetById = async (req, res) => {
                 ac.name as category_name
             FROM assets a
             JOIN asset_categories ac ON a.category_id = ac.id
-            WHERE a.id = ?
-        `, [id]);
+            WHERE a.id = ?`, id);
 
         if (assets.length === 0) {
             return res.status(404).json({
@@ -693,25 +692,24 @@ const getAssetById = async (req, res) => {
             }
         }
 
-        
-        const responseData = [{
-            id: asset.id,
-            asset_tag: asset.asset_tag,
-            category_id: asset.category_id,
-            category_name: asset.category_name,
-            name: asset.name,
-            status: asset.status,
-            field_values: fieldValues,
-            assigned_to: assignedTo,
-            assigned_at: asset.assigned_at,
-            created_at: asset.created_at,
-            updated_at: asset.updated_at,
-            created_by: asset.created_by
-        }];
+
 
         res.json({
             success: true,
-            data: responseData,
+            data: {
+                id: asset.id,
+                asset_tag: asset.asset_tag,
+                category_id: asset.category_id,
+                category_name: asset.category_name,
+                name: asset.name,
+                status: asset.status,
+                field_values: fieldValues,
+                assigned_to: assignedTo,
+                assigned_at: asset.assigned_at,
+                created_at: asset.created_at,
+                updated_at: asset.updated_at,
+                created_by: asset.created_by
+            },
         });
 
     } catch (error) {
@@ -725,9 +723,316 @@ const getAssetById = async (req, res) => {
 };
 
 
+// const updateAsset = async (req, res) => {
+//     try {
+//         const db = req.db;
+//         const { id } = req.params;
+//         const {
+//             asset_tag,
+//             asset_type,
+//             assign_to,
+//             field_values,
+//         } = req.body;
+
+//         const [existing] = await db.query(
+//             'SELECT * FROM assets WHERE id = ?',
+//             [id]
+//         );
+
+//         if (existing.length === 0) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: 'Asset not found'
+//             });
+//         }
+
+//         const asset = existing[0];
+
+//         if (asset_tag && asset_tag !== asset.asset_tag) {
+//             const [duplicate] = await db.query(
+//                 'SELECT id FROM assets WHERE asset_tag = ? AND id != ?',
+//                 [asset_tag, id]
+//             );
+
+//             if (duplicate.length > 0) {
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: 'Asset tag already exists'
+//                 });
+//             }
+//         }
+
+//         // Get category id if type provided
+//         let category_id = asset.category_id;
+//         if (asset_type) {
+//             const [category] = await db.query(
+//                 'SELECT id FROM asset_categories WHERE name = ?',
+//                 [asset_type]
+//             );
+//             if (category.length === 0) {
+//                 return res.status(400).json({
+//                     success: false,
+//                     message: 'Category not found'
+//                 });
+//             }
+//             category_id = category[0].id;
+//         }
+
+//         // Handle assignment
+//         let assigned_to_emp_id = asset.assigned_to_emp_id;
+//         let assigned_to_admin_id = asset.assigned_to_admin_id;
+//         // let assigned_at = asset.assigned_at;
+
+//         if (assign_to !== undefined) {
+//             if (!assign_to) {
+//                 // Unassign
+//                 assigned_to_emp_id = null;
+//                 assigned_to_admin_id = null;
+//             } else {
+//                 // Check employee
+//                 const [emp] = await db.query(
+//                     'SELECT id FROM employee_info WHERE id = ?',
+//                     [assign_to]
+//                 );
+//                 if (emp.length > 0) {
+//                     assigned_to_emp_id = assign_to;
+//                     assigned_to_admin_id = null;
+//                     // Check admin
+//                     const [admin] = await db.query(
+//                         'SELECT id FROM super_admin WHERE id = ?',
+//                         [assign_to]
+//                     );
+//                     if (admin.length > 0) {
+//                         assigned_to_emp_id = null;
+//                         assigned_to_admin_id = assign_to;
+//                     } else {
+//                         return res.status(400).json({
+//                             success: false,
+//                             message: 'User not found'
+//                         });
+//                     }
+//                 }
+//             }
+//         }
+
+//         // Merge field values
+//         let mergedFields = {};
+//         if (asset.field_values) {
+//             try {
+//                 mergedFields = JSON.parse(asset.field_values);
+//             } catch (e) {
+//                 mergedFields = {};
+//             }
+//         }
+
+//         if (field_values) {
+//             mergedFields = { ...mergedFields, ...field_values };
+//         }
+
+//         // Simple update query
+//         await db.query(
+//             `UPDATE assets 
+//              SET asset_tag = COALESCE(?, asset_tag),
+//                  category_id = COALESCE(?, category_id),
+//                  field_values = ?,
+//                  assigned_to_emp_id = ?,
+//                  assigned_to_admin_id = ?,
+//              WHERE id = ?`,
+//             [
+//                 asset_tag,
+//                 category_id,
+//                 JSON.stringify(mergedFields),
+//                 assigned_to_emp_id,
+//                 assigned_to_admin_id,
+//                 id
+//             ]
+//         );
+
+//         const [updated] = await db.query(
+//             `SELECT a.*, ac.name as category_name 
+//              FROM assets a
+//              JOIN asset_categories ac ON a.category_id = ac.id
+//              WHERE a.id = ?`,
+//             [id]
+//         );
+
+//         if (updated[0].field_values) {
+//             updated[0].field_values = JSON.parse(updated[0].field_values);
+//         }
+
+//         res.json({
+//             success: true,
+//             message: 'Asset updated successfully',
+//             data: updated[0]
+//         });
+
+//     } catch (error) {
+//         console.error('Error:', error);
+//         res.status(500).json({
+//             success: false,
+//             message: error.message
+//         });
+//     }
+// };
+
+const updateAsset = async (req, res) => {
+    try {
+        const db = req.db;
+        const { id } = req.params;
+        const {
+            asset_tag,
+            asset_type,
+            assign_to,
+            field_values,
+        } = req.body;
+
+        const [existing] = await db.query(
+            'SELECT * FROM assets WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Asset not found'
+            });
+        }
+
+        const asset = existing[0];
+
+        // Check duplicate asset tag
+        if (asset_tag && asset_tag !== asset.asset_tag) {
+            const [duplicate] = await db.query(
+                'SELECT id FROM assets WHERE asset_tag = ? AND id != ?',
+                [asset_tag, id]
+            );
+
+            if (duplicate.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Asset tag already exists'
+                });
+            }
+        }
+
+        // Get category id if type provided
+        let category_id = asset.category_id;
+        if (asset_type) {
+            const [category] = await db.query(
+                'SELECT id FROM asset_categories WHERE name = ?',
+                [asset_type]
+            );
+            if (category.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Category not found'
+                });
+            }
+            category_id = category[0].id;
+        }
+
+        // Handle assignment - FIXED LOGIC
+        let assigned_to_emp_id = asset.assigned_to_emp_id;
+        let assigned_to_admin_id = asset.assigned_to_admin_id;
+
+        if (assign_to !== undefined) {
+            if (!assign_to) {
+                assigned_to_emp_id = null;
+                assigned_to_admin_id = null;
+            } else {
+                // First check employee
+                const [emp] = await db.query(
+                    'SELECT id FROM employee_info WHERE id = ?',
+                    [assign_to]
+                );
+                
+                if (emp.length > 0) {
+                    assigned_to_emp_id = assign_to;
+                    assigned_to_admin_id = null;
+                } else {
+                    const [admin] = await db.query(
+                        'SELECT id FROM super_admin WHERE id = ?',
+                        [assign_to]
+                    );
+                    
+                    if (admin.length > 0) {
+                        assigned_to_emp_id = null;
+                        assigned_to_admin_id = assign_to;
+                    } else {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'User not found'
+                        });
+                    }
+                }
+            }
+        }
+
+        // Merge field values
+        let mergedFields = {};
+        if (asset.field_values) {
+            try {
+                mergedFields = JSON.parse(asset.field_values);
+            } catch (e) {
+                mergedFields = {};
+            }
+        }
+
+        if (field_values) {
+            mergedFields = { ...mergedFields, ...field_values };
+        }
+
+        // FIXED: Removed extra comma after assigned_to_admin_id
+        await db.query(
+            `UPDATE assets 
+             SET asset_tag = COALESCE(?, asset_tag),
+                 category_id = COALESCE(?, category_id),
+                 field_values = ?,
+                 assigned_to_emp_id = ?,
+                 assigned_to_admin_id = ?
+             WHERE id = ?`,
+            [
+                asset_tag,
+                category_id,
+                JSON.stringify(mergedFields),
+                assigned_to_emp_id,
+                assigned_to_admin_id,
+                id
+            ]
+        );
+
+        const [updated] = await db.query(
+            `SELECT a.*, ac.name as category_name 
+             FROM assets a
+             JOIN asset_categories ac ON a.category_id = ac.id
+             WHERE a.id = ?`,
+            [id]
+        );
+
+        if (updated[0].field_values) {
+            updated[0].field_values = JSON.parse(updated[0].field_values);
+        }
+
+        res.json({
+            success: true,
+            message: 'Asset updated successfully',
+            data: updated[0]
+        });
+
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+
 module.exports = {
     generateUniqueBarcode,
     createAssets,
     getAllAssets,
-    getAssetById
+    getAssetById,
+    updateAsset
 }

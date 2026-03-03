@@ -6168,12 +6168,9 @@ const createTenantTables = async (tenantDb) => {
           FOREIGN KEY (assigned_to_admin_id) REFERENCES super_admin(id) ON DELETE SET NULL,
           FOREIGN KEY (created_by) REFERENCES super_admin(id) ON DELETE SET NULL,
           
-
           CONSTRAINT check_single_assignment CHECK (
-              (assigned_to_emp_id IS NOT NULL AND assigned_to_admin_id IS NULL) OR
-              (assigned_to_emp_id IS NULL AND assigned_to_admin_id IS NOT NULL) OR
-              (assigned_to_emp_id IS NULL AND assigned_to_admin_id IS NULL)
-        )
+            NOT (assigned_to_emp_id IS NOT NULL AND assigned_to_admin_id IS NOT NULL)
+          )
       ) 
   `);
 
