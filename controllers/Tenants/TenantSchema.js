@@ -415,18 +415,32 @@ const createTenantTables = async (tenantDb) => {
           "section": "main"
         },
         {
+            "name": "generation",
+            "label": "Generation",
+            "type": "text",
+            "required": true,
+            "section": "main"
+        },
+        {
           "name": "ram",
           "label": "RAM | Memory",
           "type": "text",
           "required": true,
           "section": "main"
         },
+       {
+            "name": "primary_storage",
+            "label": "Primary Storage (HDD | SSD)",
+            "type": "text",
+            "required": true,
+            "section": "main"
+        },
         {
-          "name": "storage",
-          "label": "Storage (HDD | SSD)",
-          "type": "text",
-          "required": true,
-          "section": "main"
+            "name": "secondary_storage",
+            "label": "Secondary Storage (HDD | SSD)",
+            "type": "text",
+            "required": true,
+            "section": "main"
         },
         {
           "name": "os",
@@ -708,6 +722,13 @@ const createTenantTables = async (tenantDb) => {
           "section": "main"
         },
         {
+            "name": "generation",
+            "label": "Generation",
+            "type": "text",
+            "required": true,
+            "section": "main"
+        },
+        {
           "name": "ram",
           "label": "RAM | Memory",
           "type": "text",
@@ -715,11 +736,18 @@ const createTenantTables = async (tenantDb) => {
           "section": "main"
         },
         {
-          "name": "storage",
-          "label": "Storage (HDD | SSD)",
-          "type": "text",
-          "required": true,
-          "section": "main"
+            "name": "primary_storage",
+            "label": "Primary Storage (HDD | SSD)",
+            "type": "text",
+            "required": true,
+            "section": "main"
+        },
+        {
+            "name": "secondary_storage",
+            "label": "Secondary Storage (HDD | SSD)",
+            "type": "text",
+            "required": true,
+            "section": "main"
         },
         {
           "name": "os",
@@ -2743,8 +2771,15 @@ const createTenantTables = async (tenantDb) => {
           "section": "main"
         },
         {
-          "name": "power_supply",
-          "label": "Power Supply (Number and wattage)",
+          "name": "primary_power_supply",
+          "label": "Primary Power Supply",
+          "type": "text",
+          "required": true,
+          "section": "main"
+        },
+        {
+          "name": "secondary_power_supply",
+          "label": "Secondary Power Supply",
           "type": "text",
           "required": true,
           "section": "main"
