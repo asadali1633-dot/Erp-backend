@@ -4745,7 +4745,7 @@ const createTenantTables = async (tenantDb) => {
     // ==================== NETWORKING EQUIPMENT CATEGORY ====================
     await tenantDb.execute(`
     INSERT INTO asset_categories (name, description, fields_definition) VALUES 
-    ('Networking', 'Networking equipment including switches, routers, firewalls and access points', 
+    ('Network_Device', 'Networking equipment including switches, routers, firewalls and access points', 
     '{
       "sections": [
         {
