@@ -3,11 +3,13 @@ const nodemailer = require("nodemailer");
 
 
 const transporter = nodemailer.createTransport({
-    service: "gmail", // Gmail use kar rahe hain (ya apna SMTP server)
+    host: "smtp.zoho.com",
+    port: 465,
+    secure: true, 
     auth: {
-        user: process.env.EMAIL_CONFIG, // apna email
-        pass: process.env.EMAIL_PASS  // us email ka app password
-    }
+        user: process.env.EMAIL_CONFIG,
+        pass: process.env.EMAIL_PASS,
+    },
 });
 
 async function sendMail(to, subject, text) {

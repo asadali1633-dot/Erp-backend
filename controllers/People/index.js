@@ -62,6 +62,13 @@ const CreatePeople = async (req, res) => {
       });
     }
 
+    const [companyRows] = await db.execute(
+      `SELECT company FROM companies WHERE id = ? LIMIT 1`,
+      [companyId]
+    );
+
+    const companyName = companyRows.length > 0 ? companyRows[0].company : null;
+
     const {
       emp_id, // User input emp_id
       first_name,
@@ -128,7 +135,17 @@ const CreatePeople = async (req, res) => {
       });
     }
 
-    const plainPassword = "123456789";
+    const generateRandomPassword = () => {
+      const chars = `${process.env.temPwd}`;
+      let password = '';
+      for (let i = 0; i < 9; i++) {
+        const randomIndex = Math.floor(Math.random() * chars.length);
+        password += chars[randomIndex];
+      }
+      return password;
+    };
+
+    const plainPassword = generateRandomPassword();
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
     const sql = `
       INSERT INTO employee_info (
@@ -207,7 +224,9 @@ const CreatePeople = async (req, res) => {
 
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.zoho.com",
+      port: 465,
+      secure: true, 
       auth: {
         user: process.env.EMAIL_CONFIG,
         pass: process.env.EMAIL_PASS,
@@ -217,15 +236,20 @@ const CreatePeople = async (req, res) => {
     await transporter.sendMail({
       from: `"Support Team" <${process.env.EMAIL_CONFIG}>`,
       to: email,
-      subject: "Your Account Credentials",
+      subject: `Your ${companyName} account has been created`,
       html: `
-        <h3>Hello ${first_name},</h3>
-        <p>Your account has been created successfully.</p>
+        <h3>Hi ${first_name},</h3>
+        <p>An account has been created for you at ${companyName} u can now log in using the credentials below.</p>
+        <p>Login Here:  [<a href="https://software.itrackspace.com/">Link to Login Page</a>]</p>
+       
         <p><b>Email:</b> ${email}</p>
-        <p><b>Password:</b> ${plainPassword}</p>
-        <p>Please change your password after first login.</p>
+        <p><b>Temporary Password:</b> ${plainPassword}</p>
+        <p>For security, you will be prompted to change your password upon first login.</p>
+
+        <p>If you have any trouble logging in, please contact our support team at.</p>
+        <p>support@itrackspace.com or +923463099570.</p>
         <br/>
-        <p>Regards,<br/>Admin Team</p>
+        <p>Best regards,,<br/>The IT Racks Team</p>
       `,
     });
 
@@ -620,7 +644,7 @@ const GetAlUsers = async (req, res) => {
       `SELECT 
         id,
         CONCAT(first_name, ' ', last_name) AS name,
-        email
+        email,user_type
       FROM employee_info
       WHERE company_id = ?
 
@@ -629,7 +653,7 @@ const GetAlUsers = async (req, res) => {
       SELECT 
         id,
         CONCAT(first_name, ' ', last_name) AS name,
-        email
+        email,user_type
       FROM super_admin`,
       [companyId]
     );
@@ -745,6 +769,13 @@ const CreateSuperAdmin = async (req, res) => {
     const db = req.db;
     const companyId = req.user.company;
 
+    const [companyRows] = await db.execute(
+      `SELECT company FROM companies WHERE id = ? LIMIT 1`,
+      [companyId]
+    );
+
+    const companyName = companyRows.length > 0 ? companyRows[0].company : null;
+
     const {
       emp_id,
       first_name,
@@ -807,7 +838,17 @@ const CreateSuperAdmin = async (req, res) => {
       });
     }
 
-    const plainPassword = "123456789";
+    const generateRandomPassword = () => {
+      const chars = `${process.env.temPwd}`;
+      let password = '';
+      for (let i = 0; i < 9; i++) {
+        const randomIndex = Math.floor(Math.random() * chars.length);
+        password += chars[randomIndex];
+      }
+      return password;
+    };
+
+    const plainPassword = generateRandomPassword();
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     const sql = `
@@ -891,7 +932,9 @@ const CreateSuperAdmin = async (req, res) => {
 
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.zoho.com",
+      port: 465,
+      secure: true, 
       auth: {
         user: process.env.EMAIL_CONFIG,
         pass: process.env.EMAIL_PASS,
@@ -901,16 +944,20 @@ const CreateSuperAdmin = async (req, res) => {
     await transporter.sendMail({
       from: `"Support Team" <${process.env.EMAIL_CONFIG}>`,
       to: email,
-      subject: "Your Super Admin Account Credentials",
+      subject: `Your ${companyName} account has been created`,
       html: `
-        <h3>Hello ${first_name},</h3>
-        <p>Your Super Admin account has been created successfully.</p>
-        <p><b>Employee ID:</b> ${emp_id}</p>
+        <h3>Hi ${first_name},</h3>
+        <p>An account has been created for you at ${companyName} u can now log in using the credentials below.</p>
+        <p>Login Here:  [<a href="https://software.itrackspace.com/">Link to Login Page</a>]</p>
+       
         <p><b>Email:</b> ${email}</p>
-        <p><b>Password:</b> ${plainPassword}</p>
-        <p>Please change your password after first login.</p>
+        <p><b>Temporary Password:</b> ${plainPassword}</p>
+        <p>For security, you will be prompted to change your password upon first login.</p>
+
+        <p>If you have any trouble logging in, please contact our support team at.</p>
+        <p>support@itrackspace.com or +923463099570.</p>
         <br/>
-        <p>Regards,<br/>System Admin Team</p>
+        <p>Best regards,,<br/>The IT Racks Team</p>
       `,
     });
 

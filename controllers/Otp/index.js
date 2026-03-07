@@ -154,7 +154,7 @@ const forgotPassSentOtp = async (req, res) => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     if (adminRows.length > 0) {
       await db.execute(
-        "UPDATE admin SET otp=?, otp_expires_at=? WHERE email=?",
+        "UPDATE super_admin SET otp=?, otp_expires_at=? WHERE email=?",
         [otp, expiresAt, email]
       );
       name = `${adminRows[0].first_name || ""} ${adminRows[0].last_name || ""}`;
