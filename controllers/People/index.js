@@ -9,39 +9,47 @@ const nodemailer = require("nodemailer");
 const GenratedEmpId = async (req, res) => {
   try {
     const db = req.db;
-    const companyId = req.user.company;
+    const companyId = req.user?.company;
 
-    if (!companyId) {
-      return res.status(400).json({
-        success: false,
-        message: "Company ID missing in token",
-      });
+    let query = `
+      SELECT MAX(CAST(emp_id AS UNSIGNED)) as max_id FROM (
+        SELECT emp_id FROM super_admin
+        WHERE emp_id REGEXP '^[0-9]+$' AND LENGTH(emp_id) = 4
+    `;
+
+    let params = [];
+
+    if (companyId) {
+      query += ` UNION ALL
+        SELECT emp_id FROM employee_info
+        WHERE company_id = ? AND emp_id REGEXP '^[0-9]+$' AND LENGTH(emp_id) = 4
+      `;
+      params.push(companyId);
+    } else {
+      query += ` UNION ALL
+        SELECT emp_id FROM employee_info
+        WHERE emp_id REGEXP '^[0-9]+$' AND LENGTH(emp_id) = 4
+      `;
     }
 
-    const [empRows] = await db.execute(
-      `SELECT emp_id
-       FROM employee_info
-       WHERE company_id = ?
-       ORDER BY emp_id DESC
-       LIMIT 1`,
-      [companyId]
-    );
+    query += `) AS all_ids`;
 
-    let nextEmployeeId = "0004";
+    const [result] = await db.execute(query, params);
 
-    if (empRows.length > 0 && empRows[0].emp_id) {
-      const lastId = parseInt(empRows[0].emp_id, 10);
-      nextEmployeeId = (lastId + 1).toString().padStart(4, "0");
-    }
+    const maxId = result[0]?.max_id || 0;
+    let nextId = maxId + 1;
+    if (nextId < 1) nextId = 1;
 
+    const nextEmployeeId = nextId.toString().padStart(4, "0");
     return res.status(200).json({
       success: true,
       message: "Next employee ID generated successfully",
       next_employee_id: nextEmployeeId,
+      current_max_id: maxId > 0 ? maxId.toString().padStart(4, "0") : null,
     });
 
   } catch (error) {
-    console.error("Emp Generated Id Error:", error);
+    console.error("Generate Employee ID Error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -226,7 +234,7 @@ const CreatePeople = async (req, res) => {
     const transporter = nodemailer.createTransport({
       host: "smtp.zoho.com",
       port: 465,
-      secure: true, 
+      secure: true,
       auth: {
         user: process.env.EMAIL_CONFIG,
         pass: process.env.EMAIL_PASS,
@@ -934,7 +942,7 @@ const CreateSuperAdmin = async (req, res) => {
     const transporter = nodemailer.createTransport({
       host: "smtp.zoho.com",
       port: 465,
-      secure: true, 
+      secure: true,
       auth: {
         user: process.env.EMAIL_CONFIG,
         pass: process.env.EMAIL_PASS,
@@ -1094,7 +1102,6 @@ const UpdateSuperAdmin = async (req, res) => {
         });
       }
 
-      console.log("currentEmployee", currentEmployee)
       if (emp_id !== currentEmployee.emp_id.toString().padStart(4, '0') || emp_id == null) {
         const [existingEmpId] = await db.execute(
           `SELECT emp_id FROM super_admin 
@@ -1261,7 +1268,6 @@ module.exports = {
   GetEmployeeById,
   uploadUserImage,
   // =========================
-  GenratedSuperAdminEmpId,
   CreateSuperAdmin,
   GetSuperAdminById,
   UpdateSuperAdmin,

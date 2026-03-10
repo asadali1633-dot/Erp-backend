@@ -220,12 +220,6 @@ router.get("/api/emp-next-id",
     tenantDbMiddleware,
     GenratedEmpId);
 
-router.get("/api/super-admin-next-id",
-    verifyToken,
-    tenantDbMiddleware,
-    GenratedSuperAdminEmpId
-);
-
 router.post("/api/emp/create-emp",
     verifyToken, 
     tenantDbMiddleware,
