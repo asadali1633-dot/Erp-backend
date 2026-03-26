@@ -6414,9 +6414,132 @@ const createTenantTables = async (tenantDb) => {
       module_field_id INT,
       can_view TINYINT(1) DEFAULT 0,
       can_edit TINYINT(1) DEFAULT 0
-      
     )
   `);
+
+  // =================== CLIENTS TABLE ======================
+
+  await tenantDb.execute(`
+    CREATE TABLE IF NOT EXISTS clients (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        client_code VARCHAR(50) NOT NULL UNIQUE,
+        client_type VARCHAR(100) DEFAULT NULL,
+        company_name VARCHAR(255) DEFAULT NULL,
+        trading_name VARCHAR(255) DEFAULT NULL,
+        registration_number VARCHAR(100) DEFAULT NULL,
+        ntn VARCHAR(50) DEFAULT NULL,
+        strn VARCHAR(50) DEFAULT NULL,
+        website VARCHAR(255) DEFAULT NULL,
+        industry VARCHAR(100) DEFAULT NULL,
+        client_since DATE DEFAULT NULL,
+        status ENUM('Active', 'Inactive', 'Prospect', 'Blacklisted') DEFAULT 'Active',
+        client_source VARCHAR(100) DEFAULT NULL,
+        parent_client_id INT DEFAULT NULL,
+        language VARCHAR(50) DEFAULT 'English',
+        currency VARCHAR(10) DEFAULT 'USD',
+        billing_address_line1 VARCHAR(255) DEFAULT NULL,
+        billing_address_line2 VARCHAR(255) DEFAULT NULL,
+        billing_city VARCHAR(100) DEFAULT NULL,
+        billing_state VARCHAR(100) DEFAULT NULL,
+        billing_postal_code VARCHAR(20) DEFAULT NULL,
+        billing_country VARCHAR(100) DEFAULT NULL,
+        payment_terms VARCHAR(50) DEFAULT 'Net 30',
+        credit_limit DECIMAL(15,2) DEFAULT NULL,
+        credit_currency VARCHAR(10) DEFAULT 'USD',
+        outstanding_balance DECIMAL(15,2) DEFAULT 0.00,
+        available_credit DECIMAL(15,2) DEFAULT NULL,
+        credit_risk_rating ENUM('Low', 'Medium', 'High') DEFAULT NULL,
+        credit_check_date DATE DEFAULT NULL,
+        credit_check_reference VARCHAR(100) DEFAULT NULL,
+        payment_method VARCHAR(100) DEFAULT NULL,
+        bank_account_details TEXT DEFAULT NULL,
+        tax_exemption_certificate VARCHAR(255) DEFAULT NULL,
+        invoicing_delivery_method VARCHAR(50) DEFAULT NULL,
+        invoice_emails TEXT DEFAULT NULL,
+        dunning_contact VARCHAR(255) DEFAULT NULL,
+        msa_reference VARCHAR(100) DEFAULT NULL,
+        msa_start_date DATE DEFAULT NULL,
+        msa_end_date DATE DEFAULT NULL,
+        msa_document VARCHAR(255) DEFAULT NULL,
+        nda_signed ENUM('Yes', 'No') DEFAULT 'No',
+        nda_date DATE DEFAULT NULL,
+        nda_expiry DATE DEFAULT NULL,
+        preferred_status ENUM('Yes', 'No') DEFAULT 'No',
+        total_lifetime_revenue DECIMAL(15,2) DEFAULT 0.00,
+        number_of_quotes INT DEFAULT 0,
+        number_of_projects INT DEFAULT 0,
+        number_of_service_orders INT DEFAULT 0,
+        number_of_assets INT DEFAULT 0,
+        last_quote_date DATE DEFAULT NULL,
+        last_invoice_date DATE DEFAULT NULL,
+        last_project_date DATE DEFAULT NULL,
+        last_service_date DATE DEFAULT NULL,
+        next_followup_date DATE DEFAULT NULL,
+        account_manager_type ENUM('super_admin', 'employee') DEFAULT NULL,
+        super_admin_account_manager_id INT DEFAULT NULL,
+        employee_account_manager_id INT DEFAULT NULL,
+        secondary_account_manager_type ENUM('super_admin', 'employee') DEFAULT NULL,
+        super_admin_secondary_account_manager_id INT DEFAULT NULL,
+        employee_secondary_account_manager_id INT DEFAULT NULL,
+        internal_notes TEXT DEFAULT NULL,
+        gdpr_consent_date DATE DEFAULT NULL,
+        marketing_opt_out ENUM('Yes', 'No') DEFAULT 'No',
+        attachments LONGTEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_client_code (client_code),
+        INDEX idx_company_name (company_name),
+        INDEX idx_status (status),
+        INDEX idx_parent_client (parent_client_id),
+        INDEX idx_account_manager (account_manager_type, super_admin_account_manager_id, employee_account_manager_id),
+        INDEX idx_secondary_account_manager (secondary_account_manager_type, super_admin_secondary_account_manager_id, employee_secondary_account_manager_id),
+        FOREIGN KEY (parent_client_id) REFERENCES clients(id) ON DELETE SET NULL
+    )
+  `)
+
+  // ====================== CLIENT CONTACTS TABLE =======================
+  await tenantDb.execute(`
+    CREATE TABLE IF NOT EXISTS client_contacts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        client_id INT NOT NULL,
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        job_title VARCHAR(100) NOT NULL,
+        department VARCHAR(100) DEFAULT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone_direct VARCHAR(50) DEFAULT NULL,
+        mobile VARCHAR(50) NOT NULL,
+        is_primary TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_client_id (client_id),
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+    )
+  `)
+
+  // ======================== CLIENT SHIPPING ADDRESS TABLE ====================
+  await tenantDb.execute(`
+    CREATE TABLE IF NOT EXISTS client_shipping_addresses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        client_id INT NOT NULL,
+        address_name VARCHAR(100) DEFAULT NULL,
+        address_line1 VARCHAR(255) DEFAULT NULL,
+        address_line2 VARCHAR(255) DEFAULT NULL,
+        city VARCHAR(100) DEFAULT NULL,
+        state_province VARCHAR(100) DEFAULT NULL,
+        postal_code VARCHAR(20) DEFAULT NULL,
+        country VARCHAR(100) DEFAULT NULL,
+        default_shipping ENUM('Yes', 'No') DEFAULT 'No',
+        contact_person VARCHAR(255) DEFAULT NULL,
+        phone_location VARCHAR(50) DEFAULT NULL,
+        notes TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_client_id (client_id),
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+    )
+  `)
+  
 
   // ==================== THEME SETTINGS Table ====================
   await tenantDb.execute(`

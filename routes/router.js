@@ -20,7 +20,8 @@ const tenantDbMiddleware = require("../middlewares/tenantDbMiddleware");
 const { saveSuperAdminEducation, getSuperAdminEducation, getSuperAdminEducationById, updateSuperAdminEducation, saveEmployeeEducation, getEmployeeEducation, getEmployeeEducationById, updateEmployeeEducation } = require("../controllers/education");
 const setUploadConfig = require("../controllers/filemulters/uploadConfig");
 const { saveSuperAdminQualification, getSuperAdminQualifications, getSuperAdminQualificationById, updateSuperAdminQualification, saveEmployeeQualification, getEmployeeQualification, getEmployeeQualificationById, updateEmployeeQualification } = require("../controllers/qualification");
-const{ saveSuperAdminExperience, getSuperAdminExperience, getSuperAdminExperienceById, updateSuperAdminExperience, saveEmployeeExperience, getEmployeeExperience, getEmployeeExperienceById, updateEmployeeExperience } = require("../controllers/experiance/index")
+const{ saveSuperAdminExperience, getSuperAdminExperience, getSuperAdminExperienceById, updateSuperAdminExperience, saveEmployeeExperience, getEmployeeExperience, getEmployeeExperienceById, updateEmployeeExperience } = require("../controllers/experiance/index");
+const { generateClientCode, createClient, getClientsList, getClientsWithPagination } = require("../controllers/clients");
 
 
 
@@ -483,12 +484,40 @@ router.post("/api/password/updatePassword",tenantDbMiddleware, updatePassword)
 
 
 
+// CLIENTS APIS ROUTES ======================================
+router.get(
+    '/api/client/id/unique',
+    verifyToken,
+    tenantDbMiddleware,
+    generateClientCode
+);
 
+router.post(
+    '/api/client/client-create',
+    verifyToken,
+    tenantDbMiddleware,
+    setUploadConfig("client_documents", ["image/jpeg", "image/png", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    upload.fields([
+        { name: "tax_exemption_certificate", maxCount: 1 },
+        { name: "msa_document", maxCount: 1 },
+        { name: "attachments", maxCount: 10 }   // ye attachments multiple files hain
+    ]),
+    createClient
+);
 
-// router.post('/api/Tickets/createTicket', verifyToken, createTicket);
-// router.get('/api/Tickets/GetAllTickets', verifyToken, GetAllTickets);
+router.get(
+    '/api/client/get-all',
+    verifyToken,
+    tenantDbMiddleware,
+    getClientsList
+);
 
-
+router.get(
+    '/api/client/get-all-with-pagination',
+    verifyToken,
+    tenantDbMiddleware,
+    getClientsWithPagination
+);
 
 
 module.exports = router;
