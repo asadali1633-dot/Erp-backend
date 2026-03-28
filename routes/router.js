@@ -21,7 +21,8 @@ const { saveSuperAdminEducation, getSuperAdminEducation, getSuperAdminEducationB
 const setUploadConfig = require("../controllers/filemulters/uploadConfig");
 const { saveSuperAdminQualification, getSuperAdminQualifications, getSuperAdminQualificationById, updateSuperAdminQualification, saveEmployeeQualification, getEmployeeQualification, getEmployeeQualificationById, updateEmployeeQualification } = require("../controllers/qualification");
 const{ saveSuperAdminExperience, getSuperAdminExperience, getSuperAdminExperienceById, updateSuperAdminExperience, saveEmployeeExperience, getEmployeeExperience, getEmployeeExperienceById, updateEmployeeExperience } = require("../controllers/experiance/index");
-const { generateClientCode, createClient, getClientsList, getClientsWithPagination } = require("../controllers/clients");
+const { generateClientCode, createClient, getClientsList, getClientsWithPagination, getClientById, updateClient } = require("../controllers/clients");
+const { generateQuotationNumber } = require("../controllers/quote");
 
 
 
@@ -496,7 +497,9 @@ router.post(
     '/api/client/client-create',
     verifyToken,
     tenantDbMiddleware,
-    setUploadConfig("client_documents", ["image/jpeg", "image/png", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    setUploadConfig("client_documents", 
+        ["image/jpeg", "image/png", "application/pdf", "application/msword", 
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
     upload.fields([
         { name: "tax_exemption_certificate", maxCount: 1 },
         { name: "msa_document", maxCount: 1 },
@@ -519,5 +522,32 @@ router.get(
     getClientsWithPagination
 );
 
+router.get(
+    '/api/client/get/:id',
+    verifyToken,
+    tenantDbMiddleware,
+    getClientById
+);
+router.put(
+    '/api/client/update/:id',
+    verifyToken,
+    tenantDbMiddleware,
+    setUploadConfig("client_documents", 
+        ["image/jpeg", "image/png", "application/pdf", "application/msword", 
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    upload.fields([
+        { name: "tax_exemption_certificate", maxCount: 1 },
+        { name: "msa_document", maxCount: 1 },
+        { name: "attachments", maxCount: 10 }
+    ]),
+    updateClient
+);
 
+
+// ======================================================
+router.post('/api/quotation/generate-number', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    generateQuotationNumber
+);
 module.exports = router;
