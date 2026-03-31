@@ -22,7 +22,7 @@ const setUploadConfig = require("../controllers/filemulters/uploadConfig");
 const { saveSuperAdminQualification, getSuperAdminQualifications, getSuperAdminQualificationById, updateSuperAdminQualification, saveEmployeeQualification, getEmployeeQualification, getEmployeeQualificationById, updateEmployeeQualification } = require("../controllers/qualification");
 const{ saveSuperAdminExperience, getSuperAdminExperience, getSuperAdminExperienceById, updateSuperAdminExperience, saveEmployeeExperience, getEmployeeExperience, getEmployeeExperienceById, updateEmployeeExperience } = require("../controllers/experiance/index");
 const { generateClientCode, createClient, getClientsList, getClientsWithPagination, getClientById, updateClient } = require("../controllers/clients");
-const { generateQuotationNumber } = require("../controllers/quote");
+const { generateQuotationNumber, createQuotation, getAllQuotations, getQuotationById, updateQuotation } = require("../controllers/quote");
 
 
 
@@ -550,4 +550,36 @@ router.post('/api/quotation/generate-number',
     tenantDbMiddleware, 
     generateQuotationNumber
 );
+
+router.post('/api/quotation/create', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    setUploadConfig('quotations', 
+        ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+    upload.array('attachments'), 
+    createQuotation
+);
+
+router.get('/api/quotation/all/get-all-with-pagination', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    getAllQuotations
+);
+
+router.get('/api/quotation/get/:id', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    getQuotationById
+);
+
+router.put('/api/quotation/update/:id', 
+    verifyToken, 
+    tenantDbMiddleware, 
+     setUploadConfig('quotations', 
+        ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+    upload.array('attachments'), updateQuotation);
+
+
 module.exports = router;
