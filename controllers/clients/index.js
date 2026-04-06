@@ -98,7 +98,6 @@ const createClient = async (req, res) => {
             outstanding_balance, available_credit
         } = req.body;
 
-        console.log("req.body",req.body)
 
         const files = req.files || {};
         const taxExemptionFile = files.tax_exemption_certificate ? files.tax_exemption_certificate[0] : null;
@@ -119,6 +118,18 @@ const createClient = async (req, res) => {
             return res.status(400).json({ success: false, message: 'client_code and company_name are required' });
         }
 
+        const [existingClient] = await connection.query(
+            'SELECT id FROM clients WHERE client_code = ?',
+            [client_id]
+        );
+        if (existingClient.length > 0) {
+            await connection.rollback();
+            return res.status(409).json({
+                success: false,
+                message: 'Client ID already exists. Please use a different code.'
+            });
+        }
+
         // Account manager (primary) – just use type and id as they are
         const account_manager_type_col = account_manager_type || null;
         const account_manager_id_col = account_manager_id || null;
@@ -132,12 +143,12 @@ const createClient = async (req, res) => {
         let created_by_type = null;
         let created_by_id = null;
         if (currentUser) {
-            if (currentUser.user_type === "Super_admin") {
-                created_by_type = "super_admin";
-                created_by_id = currentUser.id;
+            if (currentUser?.user_type === "Super_admin") {
+                created_by_type = currentUser?.user_type;
+                created_by_id = currentUser?.id;
             } else {
                 created_by_type = currentUser?.user_type;
-                created_by_id = currentUser.id;
+                created_by_id = currentUser?.id;
             }
         }
 
@@ -243,11 +254,61 @@ const createClient = async (req, res) => {
         const [clientResult] = await connection.query(insertQuery, values);
         const clientId = clientResult.insertId;
 
-        // ---------- Contacts and shipping addresses (skipped as per request) ----------
-        // You can later uncomment and parse JSON if needed
-        // const contactsArray = req.body.contacts ? JSON.parse(req.body.contacts) : [];
-        // const shippingArray = req.body.shipping_addresses ? JSON.parse(req.body.shipping_addresses) : [];
-        // ... insert logic
+        let contactsArray = [];
+        if (contacts) {
+            try {
+                const parsed = JSON.parse(contacts);
+                contactsArray = parsed.filter(contact =>
+                    contact.first_name?.trim() ||
+                    contact.last_name?.trim() ||
+                    contact.email?.trim() ||
+                    contact.mobile?.trim()
+                );
+            } catch (e) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid contacts format' });
+            }
+        }
+        if (contactsArray.length > 0) {
+            for (const contact of contactsArray) {
+                const { first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary } = contact;
+                await connection.query(
+                    `INSERT INTO client_contacts 
+                (client_id, first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [clientId, first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary || 0]
+                );
+            }
+        }
+
+        let shippingArray = [];
+        if (shipping_addresses) {
+            try {
+                const parsed = JSON.parse(shipping_addresses);
+                shippingArray = parsed.filter(addr =>
+                    addr.address_line1?.trim() ||
+                    addr.city?.trim() ||
+                    addr.country?.trim()
+                );
+            } catch (e) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid shipping addresses format' });
+            }
+        }
+        if (shippingArray.length > 0) {
+            for (const addr of shippingArray) {
+                const { address_name, address_line1, address_line2, city, state_province,
+                    postal_code, country, default_shipping, contact_person, phone_location, notes } = addr;
+                await connection.query(
+                    `INSERT INTO client_shipping_addresses 
+                (client_id, address_name, address_line1, address_line2, city, state_province,
+                 postal_code, country, default_shipping, contact_person, phone_location, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [clientId, address_name, address_line1, address_line2, city, state_province,
+                        postal_code, country, default_shipping || 'No', contact_person, phone_location, notes]
+                );
+            }
+        }
 
         await connection.commit();
 
@@ -259,7 +320,7 @@ const createClient = async (req, res) => {
 
     } catch (error) {
         if (connection) await connection.rollback();
-        console.error('Error creating client:', error);
+        console.error('Error creating client:', error.message);
         res.status(500).json({ success: false, message: error.message });
     } finally {
         if (connection) connection.release();
@@ -291,7 +352,7 @@ const getClientsWithPagination = async (req, res) => {
         // Fetch paginated data
         const [rows] = await db.query(
             `SELECT id, client_code, company_name, trading_name, client_type, status,
-                    billing_city, billing_country, currency, created_at
+                    billing_city, billing_country, tax_exemption_certificate,msa_document,attachments,currency, created_at
              FROM clients
              ${whereClause}
              ORDER BY id DESC
@@ -385,8 +446,6 @@ const updateClient = async (req, res) => {
     try {
         const db = req.db;
         const { id } = req.params;
-        console.log("req.body",req.body)
-
 
         if (!id || isNaN(id)) {
             return res.status(400).json({ success: false, message: 'Invalid client ID' });
@@ -395,19 +454,20 @@ const updateClient = async (req, res) => {
         connection = await db.getConnection();
         await connection.beginTransaction();
 
-        // Check if client exists
+        // Fetch existing file paths (optional)
         const [existing] = await connection.query(
-            'SELECT id FROM clients WHERE id = ?',
+            'SELECT tax_exemption_certificate, msa_document, attachments FROM clients WHERE id = ?',
             [id]
         );
         if (existing.length === 0) {
             await connection.rollback();
             return res.status(404).json({ success: false, message: 'Client not found' });
         }
+        const existingFilePaths = existing[0];
 
-        // Destructure fields from body
+        // Destructure body
         const {
-            client_type, company_name, trading_name, registration_number,
+            client_id, client_type, company_name, trading_name, registration_number,
             ntn, strn, website, industry, client_since, status, client_source,
             parent_client, language, currency,
             billing_address_line1, billing_address_line2, billing_city, state,
@@ -424,36 +484,42 @@ const updateClient = async (req, res) => {
             account_manager_id, account_manager_type,
             secondary_account_manager_id, secondary_account_manager_type,
             internal_notes, gdpr_consent_date, marketing_opt_out,
-            outstanding_balance, available_credit
+            outstanding_balance, available_credit,
+            contacts,              // JSON string
+            shipping_addresses     // JSON string
         } = req.body;
 
-
-        // Files handling
+        // ---------- File handling ----------
         const files = req.files || {};
-        const taxExemptionFile = files.tax_exemption_certificate ? files.tax_exemption_certificate[0] : null;
-        const msaDocumentFile = files.msa_document ? files.msa_document[0] : null;
+        const taxExemptionFile = files.tax_exemption_certificate?.[0] || null;
+        const msaDocumentFile = files.msa_document?.[0] || null;
         const attachmentFiles = files.attachments || [];
 
-        const tax_exemption_certificate = taxExemptionFile ? `/uploads/client_documents/${taxExemptionFile.filename}` : null;
-        const msa_document = msaDocumentFile ? `/uploads/client_documents/${msaDocumentFile.filename}` : null;
+        const tax_exemption_certificate = taxExemptionFile
+            ? `/uploads/client_documents/${taxExemptionFile.filename}`
+            : existingFilePaths.tax_exemption_certificate || null;
 
-        let attachmentsArray = [];
-        for (const file of attachmentFiles) {
-            attachmentsArray.push(`/uploads/client_documents/${file.filename}`);
+        const msa_document = msaDocumentFile
+            ? `/uploads/client_documents/${msaDocumentFile.filename}`
+            : existingFilePaths.msa_document || null;
+
+        let attachmentsJSON = null;
+        if (attachmentFiles.length > 0) {
+            attachmentsJSON = JSON.stringify(attachmentFiles.map(f => `/uploads/client_documents/${f.filename}`));
+        } else {
+            attachmentsJSON = existingFilePaths.attachments;
         }
-        const attachmentsJSON = attachmentsArray.length > 0 ? JSON.stringify(attachmentsArray) : null;
 
-        // Account managers – use direct values
+        // Account managers
         const account_manager_type_col = account_manager_type;
         const account_manager_id_col = account_manager_id;
         const secondary_account_manager_type_col = secondary_account_manager_type;
         const secondary_account_manager_id_col = secondary_account_manager_id;
 
-        // Build update SET clause (only fields that are provided)
+        // Update client fields
         const updateFields = [];
         const values = [];
 
-        // Helper to add field if value is provided (not undefined)
         const addField = (field, value) => {
             if (value !== undefined) {
                 updateFields.push(`${field} = ?`);
@@ -461,7 +527,7 @@ const updateClient = async (req, res) => {
             }
         };
 
-        // Add all updatable fields (client_code is read-only, skip)
+        addField('client_code', client_id);
         addField('client_type', client_type);
         addField('company_name', company_name);
         addField('trading_name', trading_name);
@@ -523,33 +589,89 @@ const updateClient = async (req, res) => {
         addField('available_credit', available_credit);
         addField('attachments', attachmentsJSON);
 
-        // If no fields to update, return
         if (updateFields.length === 0) {
             await connection.rollback();
             return res.status(400).json({ success: false, message: 'No fields to update' });
         }
 
-        // Add updated_at manually (though MySQL may update automatically, we include for safety)
         updateFields.push('updated_at = NOW()');
-
-        // Build query
         const updateQuery = `UPDATE clients SET ${updateFields.join(', ')} WHERE id = ?`;
         values.push(id);
-
         await connection.query(updateQuery, values);
 
-        // Note: Contacts and shipping addresses are skipped as per your request
-        // If you later want to update them, you would handle them similarly (delete old and insert new)
+        // ========== UPSERT CONTACTS (update + insert, no delete) ==========
+        if (contacts) {
+            let contactsArray = [];
+            try {
+                contactsArray = JSON.parse(contacts);
+            } catch (e) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid contacts format' });
+            }
+
+            for (const contact of contactsArray) {
+                const { id: contactId, first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary } = contact;
+                if (contactId) {
+                    // Update existing
+                    await connection.query(
+                        `UPDATE client_contacts SET 
+                            first_name = ?, last_name = ?, job_title = ?, department = ?, 
+                            email = ?, phone_direct = ?, mobile = ?, is_primary = ?
+                        WHERE id = ? AND client_id = ?`,
+                        [first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary || 0, contactId, id]
+                    );
+                } else {
+                    // Insert new
+                    await connection.query(
+                        `INSERT INTO client_contacts 
+                            (client_id, first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [id, first_name, last_name, job_title, department, email, phone_direct, mobile, is_primary]
+                    );
+                }
+            }
+        }
+
+        // ========== UPSERT SHIPPING ADDRESSES ==========
+        if (shipping_addresses) {
+            let shippingArray = [];
+            try {
+                shippingArray = JSON.parse(shipping_addresses);
+            } catch (e) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid shipping addresses format' });
+            }
+
+            for (const addr of shippingArray) {
+                const { id: addrId, address_name, address_line1, address_line2, city, state_province,
+                        postal_code, country, default_shipping, contact_person, phone_location, notes } = addr;
+                if (addrId) {
+                    // Update existing
+                    await connection.query(
+                        `UPDATE client_shipping_addresses SET 
+                            address_name = ?, address_line1 = ?, address_line2 = ?, city = ?, state_province = ?,
+                            postal_code = ?, country = ?, default_shipping = ?, contact_person = ?, phone_location = ?, notes = ?
+                        WHERE id = ? AND client_id = ?`,
+                        [address_name, address_line1, address_line2, city, state_province,
+                         postal_code, country, default_shipping || 'No', contact_person, phone_location, notes, addrId, id]
+                    );
+                } else {
+                    // Insert new
+                    await connection.query(
+                        `INSERT INTO client_shipping_addresses 
+                            (client_id, address_name, address_line1, address_line2, city, state_province,
+                             postal_code, country, default_shipping, contact_person, phone_location, notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [id, address_name, address_line1, address_line2, city, state_province,
+                         postal_code, country, default_shipping, contact_person, phone_location, notes]
+                    );
+                }
+            }
+        }
 
         await connection.commit();
 
-        // Fetch updated client
-        const [updated] = await connection.query(
-            'SELECT * FROM clients WHERE id = ?',
-            [id]
-        );
-
-        // Parse attachments if present
+        const [updated] = await connection.query('SELECT * FROM clients WHERE id = ?', [id]);
         if (updated[0].attachments) {
             try {
                 updated[0].attachments = JSON.parse(updated[0].attachments);
@@ -573,6 +695,184 @@ const updateClient = async (req, res) => {
     }
 };
 
+const updateClientFile = async (req, res) => {
+    let connection;
+    try {
+        const db = req.db;
+        const { id, field } = req.params;
+        const files = req.files || [];
+        const { index } = req.body;
+
+        const allowedFields = ['attachments', 'msa_document', 'tax_exemption_certificate'];
+        if (!allowedFields.includes(field)) {
+            return res.status(400).json({ success: false, message: 'Invalid field name' });
+        }
+
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid client ID' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        let existingAttachments = null;
+        if (field === 'attachments') {
+            const [clientRows] = await connection.query(
+                'SELECT attachments FROM clients WHERE id = ?',
+                [id]
+            );
+            if (clientRows.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ success: false, message: 'Client not found' });
+            }
+            if (clientRows[0].attachments) {
+                try {
+                    existingAttachments = JSON.parse(clientRows[0].attachments);
+                } catch (e) {
+                    existingAttachments = [];
+                }
+            } else {
+                existingAttachments = [];
+            }
+        }
+
+        let updateValue = null;
+        if (field === 'attachments') {
+            if (files.length === 0) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'No file uploaded' });
+            }
+            if (index === undefined || index === null) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Index is required for attachments update' });
+            }
+
+            const newFilePath = `/uploads/client_documents/${files[0].filename}`;
+            if (index >= 0 && index < existingAttachments.length) {
+                existingAttachments[index] = newFilePath;
+            } else {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid index' });
+            }
+            updateValue = JSON.stringify(existingAttachments);
+        } else {
+            // For msa_document or tax_exemption_certificate: replace entire field
+            if (files.length === 0) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'No file uploaded' });
+            }
+            if (files.length > 1) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Only one file allowed for this field' });
+            }
+            updateValue = `/uploads/client_documents/${files[0].filename}`;
+        }
+
+        await connection.query(
+            `UPDATE clients SET ${field} = ? WHERE id = ?`,
+            [updateValue, id]
+        );
+
+        await connection.commit();
+
+        let responseData = updateValue;
+        if (field === 'attachments' && updateValue) {
+            responseData = JSON.parse(updateValue);
+        }
+
+        res.json({
+            success: true,
+            message: `${field} updated successfully`,
+            data: { [field]: responseData }
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('Error updating client file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+const deleteClientFile = async (req, res) => {
+    let connection;
+    try {
+        const db = req.db;
+        const { id, field } = req.params;
+
+        const allowedFields = ['attachments', 'msa_document', 'tax_exemption_certificate'];
+        if (!allowedFields.includes(field)) {
+            return res.status(400).json({ success: false, message: 'Invalid field name' });
+        }
+
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid client ID' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        // Fetch existing data
+        const [clientRows] = await connection.query(
+            `SELECT ${field} FROM clients WHERE id = ?`,
+            [id]
+        );
+        if (clientRows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Client not found' });
+        }
+
+        let updateValue = null;
+
+        if (field === 'attachments') {
+            // ✅ Index sirf attachments ke liye chahiye
+            const { index } = req.body;
+            if (index === undefined || index === null) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Index required for attachments' });
+            }
+            let attachmentsArray = [];
+            if (clientRows[0].attachments) {
+                try {
+                    attachmentsArray = JSON.parse(clientRows[0].attachments);
+                } catch (e) {
+                    attachmentsArray = [];
+                }
+            }
+            if (index >= 0 && index < attachmentsArray.length) {
+                attachmentsArray.splice(index, 1);
+                updateValue = attachmentsArray.length > 0 ? JSON.stringify(attachmentsArray) : null;
+            } else {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid index' });
+            }
+        } else {
+            // ✅ MSA document ya Tax certificate: seedha null set karo
+            updateValue = null;
+        }
+
+        await connection.query(
+            `UPDATE clients SET ${field} = ? WHERE id = ?`,
+            [updateValue, id]
+        );
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: `${field} deleted successfully`,
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('Error deleting client file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 
 module.exports = {
     generateClientCode,
@@ -580,5 +880,7 @@ module.exports = {
     getClientsList,
     getClientsWithPagination,
     getClientById,
-    updateClient
+    updateClient,
+    updateClientFile,
+    deleteClientFile
 }

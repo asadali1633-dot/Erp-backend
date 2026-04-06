@@ -92,7 +92,7 @@ const GetUser = async (req, res) => {
 
 
     const [companyRows] = await db.execute(
-      `SELECT phone, business_id, domain
+      `SELECT company,phone, business_id, domain, ntn_vat,whatsapp_no,address,zipcode,website_url,state_province,city,image
        FROM companies
        WHERE id = ?
        LIMIT 1`,
@@ -106,9 +106,18 @@ const GetUser = async (req, res) => {
       data: {
         ...userData,
         permissions,
-        company_phone: company.phone || null,
+        company_name: company?.company || null,
         business_id: company.business_id || null,
-        domain: company.domain || null
+        domain: company.domain || null,
+        ntn_vat: company?.ntn_vat || null,
+        company_phone: company.phone || null,
+        company_whatsapp_no: company.whatsapp_no || null,
+        company_address: company.address || null,
+        company_zipcode: company.zipcode || null,
+        company_website_url: company.website_url || null,
+        company_state_province: company.state_province || null,
+        company_city: company.city || null,
+        company_logo: company.image || null,
       }
     });
 

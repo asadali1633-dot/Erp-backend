@@ -7,18 +7,20 @@ const generateQuotationNumber = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Valid client_id is required' });
         }
 
-        // Fetch client details including primary contact, currency, and payment terms
         const [clientRows] = await db.query(
-            `SELECT c.id, c.company_name, c.currency, c.payment_terms,
-                    c.billing_address_line1, c.billing_address_line2,
-                    c.billing_city, c.billing_state, c.billing_postal_code, c.billing_country,
-                    cc.first_name AS contact_first_name,
-                    cc.last_name AS contact_last_name,
-                    cc.email AS contact_email,
-                    cc.mobile AS contact_phone
-             FROM clients c
-             LEFT JOIN client_contacts cc ON c.id = cc.client_id AND cc.is_primary = 1
-             WHERE c.id = ?`,
+            `SELECT c.id, c.company_name, c.currency,
+                c.billing_address_line1,
+                c.registration_number AS strn,
+                c.ntn,
+                cc.first_name AS contact_first_name,
+                cc.last_name AS contact_last_name,
+                cc.email AS contact_email,
+                cc.mobile AS contact_phone,
+                sa.address_line1
+            FROM clients c
+            LEFT JOIN client_contacts cc ON c.id = cc.client_id AND cc.is_primary = 1
+            LEFT JOIN client_shipping_addresses sa ON c.id = sa.client_id AND sa.default_shipping = 'Yes'
+            WHERE c.id = ?`,
             [client_id]
         );
         if (clientRows.length === 0) {
@@ -27,17 +29,6 @@ const generateQuotationNumber = async (req, res) => {
 
         const client = clientRows[0];
 
-        // Build billing address string
-        const billingAddress = [
-            client.billing_address_line1,
-            client.billing_address_line2,
-            client.billing_city,
-            client.billing_state,
-            client.billing_postal_code,
-            client.billing_country
-        ].filter(Boolean).join(', ');
-
-        // Build contact full name
         const contactName = `${client.contact_first_name || ''} ${client.contact_last_name || ''}`.trim();
 
         // Generate quotation number (same logic as before)
@@ -82,10 +73,11 @@ const generateQuotationNumber = async (req, res) => {
                     customer_contact: contactName,
                     customer_email: client.contact_email,
                     customer_phone: client.contact_phone,
-                    currency: client.currency || 'PKR',
-                    payment_terms: client.payment_terms || 'Net 30',
-                    billing_address: billingAddress,
-                    note: 'Used timestamp as fallback due to duplicate'
+                    currency: client.currency,
+                    billing_address: client?.billing_address_line1,
+                    shiping_address: client?.address_line1,
+                    strn_no: client?.strn,
+                    ntn_none: client?.ntn
                 }
             });
         }
@@ -100,9 +92,11 @@ const generateQuotationNumber = async (req, res) => {
                 customer_contact: contactName,
                 customer_email: client.contact_email,
                 customer_phone: client.contact_phone,
-                currency: client.currency || 'PKR',
-                payment_terms: client.payment_terms || 'Net 30',
-                billing_address: billingAddress
+                currency: client.currency,
+                billing_address: client?.billing_address_line1,
+                shiping_address: client?.address_line1,
+                strn_no: client?.strn,
+                ntn_no: client?.ntn
             }
         });
 
@@ -136,8 +130,6 @@ const createQuotation = async (req, res) => {
             sales_person_id,
             currency,
             exchange_rate,
-            payment_terms,
-            delivery_terms,
             status,
             private_notes,
             terms_conditions,
@@ -168,15 +160,15 @@ const createQuotation = async (req, res) => {
                 client_id, customer_name, customer_contact, customer_email, customer_phone,
                 billing_address, shipping_address, project_id,
                 sales_person_type, sales_person_id,
-                currency, exchange_rate, payment_terms, delivery_terms,
+                currency, exchange_rate,
                 status, private_notes, terms_conditions, attachments
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 quotation_number, quote_date, valid_until, revision_number || 0,
                 client_id, customer_name, customer_contact, customer_email, customer_phone,
                 billing_address, shipping_address, project_id || null,
                 sales_person_type || null, sales_person_id || null,
-                currency, exchange_rate, payment_terms, delivery_terms,
+                currency, exchange_rate,
                 status, private_notes, terms_conditions, attachmentsJSON
             ]
         );
@@ -187,7 +179,6 @@ const createQuotation = async (req, res) => {
         if (itemsArray.length > 0) {
             for (const item of itemsArray) {
                 const {
-                    product_id,
                     description,
                     quantity,
                     uom,
@@ -209,13 +200,12 @@ const createQuotation = async (req, res) => {
 
                 await connection.query(
                     `INSERT INTO quotation_items (
-                        quotation_id, product_id, description, quantity, unit_price,
+                        quotation_id, description, quantity, unit_price,
                         discount_percent, discount_amount, tax_rate, tax_amount,
                         line_total, uom
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?, ?)`,
                     [
                         quotationId,
-                        product_id || null,
                         description,
                         quantity,
                         Unit_Price,
@@ -273,7 +263,7 @@ const getAllQuotations = async (req, res) => {
         const [rows] = await db.query(
             `SELECT q.id, q.quotation_number, q.quote_date, q.valid_until,
                     q.revision_number, q.client_id, q.customer_name, q.status,
-                    q.currency, q.payment_terms, q.created_at,
+                    q.currency, q.created_at,
                     (SELECT COALESCE(SUM(line_total), 0) FROM quotation_items WHERE quotation_id = q.id) as total_amount
              FROM quotations q
              ${whereClause}
@@ -308,7 +298,6 @@ const getQuotationById = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid quotation ID' });
         }
 
-        // Fetch quotation master
         const [quotationRows] = await db.query(
             `SELECT * FROM quotations WHERE id = ?`,
             [id]
@@ -320,7 +309,6 @@ const getQuotationById = async (req, res) => {
 
         const quotation = quotationRows[0];
 
-        // Parse attachments if present
         if (quotation.attachments) {
             try {
                 quotation.attachments = JSON.parse(quotation.attachments);
@@ -331,32 +319,31 @@ const getQuotationById = async (req, res) => {
             quotation.attachments = [];
         }
 
-        // Fetch quotation items
+        let clientDetails = {};
+        if (quotation.client_id) {
+            const [clientRows] = await db.query(
+                `SELECT registration_number, ntn FROM clients WHERE id = ?`,
+                [quotation.client_id]
+            );
+            if (clientRows.length > 0) {
+                clientDetails = clientRows[0];
+            }
+        }
+
         const [items] = await db.query(
-            `SELECT id, product_id, description, quantity, unit_price,
+            `SELECT id, description, quantity, unit_price,
                     discount_percent, discount_amount, tax_rate, tax_amount, line_total, uom
              FROM quotation_items
              WHERE quotation_id = ?`,
             [id]
         );
 
-        // // Optionally fetch sales person details (if needed)
-        // let salesPerson = null;
-        // if (quotation.sales_person_type && quotation.sales_person_id) {
-        //     const table = quotation.sales_person_type === 'super_admin' ? 'super_admin' : 'employee_info';
-        //     const [personRows] = await db.query(
-        //         `SELECT id, first_name, last_name, email FROM ${table} WHERE id = ?`,
-        //         [quotation.sales_person_id]
-        //     );
-        //     if (personRows.length > 0) {
-        //         salesPerson = personRows[0];
-        //     }
-        // }
-
         res.json({
             success: true,
             data: {
                 ...quotation,
+                registration_number: clientDetails.registration_number || null,
+                ntn: clientDetails.ntn || null,
                 items,
             }
         });
@@ -407,8 +394,6 @@ const updateQuotation = async (req, res) => {
             sales_person_id,
             currency,
             exchange_rate,
-            payment_terms,
-            delivery_terms,
             status,
             private_notes,
             terms_conditions,
@@ -469,20 +454,18 @@ const updateQuotation = async (req, res) => {
                 sales_person_id = ?,
                 currency = ?,
                 exchange_rate = ?,
-                payment_terms = ?,
-                delivery_terms = ?,
                 status = ?,
                 private_notes = ?,
                 terms_conditions = ?,
                 attachments = ?
             WHERE id = ?`,
             [
-                quotation_number, quote_date, valid_until, revision_number || 0,
+                quotation_number, quote_date, valid_until, revision_number,
                 client_id, customer_name, customer_contact, customer_email, customer_phone,
                 billing_address, shipping_address, project_id || null,
                 sales_person_type || null, sales_person_id || null,
-                currency || 'PKR', exchange_rate || 1, payment_terms, delivery_terms,
-                status || 'Draft', private_notes, terms_conditions,
+                currency, exchange_rate,
+                status, private_notes, terms_conditions,
                 attachmentsJSON, id
             ]
         );
@@ -494,7 +477,6 @@ const updateQuotation = async (req, res) => {
         if (itemsArray.length > 0) {
             for (const item of itemsArray) {
                 const {
-                    product_id,
                     description,
                     quantity,
                     uom,
@@ -516,13 +498,12 @@ const updateQuotation = async (req, res) => {
 
                 await connection.query(
                     `INSERT INTO quotation_items (
-                        quotation_id, product_id, description, quantity, unit_price,
+                        quotation_id, description, quantity, unit_price,
                         discount_percent, discount_amount, tax_rate, tax_amount,
                         line_total, uom
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         id,
-                        product_id || null,
                         description,
                         quantity,
                         Unit_Price,

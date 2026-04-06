@@ -21,7 +21,7 @@ const { saveSuperAdminEducation, getSuperAdminEducation, getSuperAdminEducationB
 const setUploadConfig = require("../controllers/filemulters/uploadConfig");
 const { saveSuperAdminQualification, getSuperAdminQualifications, getSuperAdminQualificationById, updateSuperAdminQualification, saveEmployeeQualification, getEmployeeQualification, getEmployeeQualificationById, updateEmployeeQualification } = require("../controllers/qualification");
 const{ saveSuperAdminExperience, getSuperAdminExperience, getSuperAdminExperienceById, updateSuperAdminExperience, saveEmployeeExperience, getEmployeeExperience, getEmployeeExperienceById, updateEmployeeExperience } = require("../controllers/experiance/index");
-const { generateClientCode, createClient, getClientsList, getClientsWithPagination, getClientById, updateClient } = require("../controllers/clients");
+const { generateClientCode, createClient, getClientsList, getClientsWithPagination, getClientById, updateClient, updateClientFile, deleteClientFile } = require("../controllers/clients");
 const { generateQuotationNumber, createQuotation, getAllQuotations, getQuotationById, updateQuotation } = require("../controllers/quote");
 
 
@@ -541,6 +541,27 @@ router.put(
         { name: "attachments", maxCount: 10 }
     ]),
     updateClient
+);
+
+router.patch(
+    '/api/client/update-file/:id/:field',
+    verifyToken,
+    tenantDbMiddleware,
+    setUploadConfig('client_documents', [
+        'image/jpeg', 'image/png', 'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ]),
+    upload.any(),   // accepts any files, we'll check in controller
+    updateClientFile
+);
+router.delete(
+    '/api/client/delete-file/:id/:field',
+    verifyToken,
+    tenantDbMiddleware,
+    deleteClientFile
 );
 
 

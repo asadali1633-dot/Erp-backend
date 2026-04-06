@@ -6420,9 +6420,9 @@ const createTenantTables = async (tenantDb) => {
   // =================== CLIENTS TABLE ======================
 
   await tenantDb.execute(`
-    CREATE TABLE IF NOT EXISTS clients (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        client_code VARCHAR(50) NOT NULL UNIQUE,
+    CREATE TABLE clients (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        client_code VARCHAR(50) NOT NULL,
         client_type VARCHAR(100) DEFAULT NULL,
         company_name VARCHAR(255) DEFAULT NULL,
         trading_name VARCHAR(255) DEFAULT NULL,
@@ -6434,7 +6434,7 @@ const createTenantTables = async (tenantDb) => {
         client_since DATE DEFAULT NULL,
         status ENUM('Active', 'Inactive', 'Prospect', 'Blacklisted') DEFAULT 'Active',
         client_source VARCHAR(100) DEFAULT NULL,
-        parent_client_id INT DEFAULT NULL,
+        parent_client_id INT(11) DEFAULT NULL,
         language VARCHAR(50) DEFAULT 'English',
         currency VARCHAR(10) DEFAULT 'USD',
         billing_address_line1 VARCHAR(255) DEFAULT NULL,
@@ -6466,34 +6466,36 @@ const createTenantTables = async (tenantDb) => {
         nda_expiry DATE DEFAULT NULL,
         preferred_status ENUM('Yes', 'No') DEFAULT 'No',
         total_lifetime_revenue DECIMAL(15,2) DEFAULT 0.00,
-        number_of_quotes INT DEFAULT 0,
-        number_of_projects INT DEFAULT 0,
-        number_of_service_orders INT DEFAULT 0,
-        number_of_assets INT DEFAULT 0,
+        number_of_quotes INT(11) DEFAULT 0,
+        number_of_projects INT(11) DEFAULT 0,
+        number_of_service_orders INT(11) DEFAULT 0,
+        number_of_assets INT(11) DEFAULT 0,
         last_quote_date DATE DEFAULT NULL,
         last_invoice_date DATE DEFAULT NULL,
         last_project_date DATE DEFAULT NULL,
         last_service_date DATE DEFAULT NULL,
         next_followup_date DATE DEFAULT NULL,
-        account_manager_type ENUM('super_admin', 'employee') DEFAULT NULL,
-        super_admin_account_manager_id INT DEFAULT NULL,
-        employee_account_manager_id INT DEFAULT NULL,
-        secondary_account_manager_type ENUM('super_admin', 'employee') DEFAULT NULL,
-        super_admin_secondary_account_manager_id INT DEFAULT NULL,
-        employee_secondary_account_manager_id INT DEFAULT NULL,
+        account_manager_type VARCHAR(20) DEFAULT NULL,
+        account_manager_id INT(11) DEFAULT NULL,
+        secondary_account_manager_type VARCHAR(20) DEFAULT NULL,
+        secondary_account_manager_id INT(11) DEFAULT NULL,
         internal_notes TEXT DEFAULT NULL,
         gdpr_consent_date DATE DEFAULT NULL,
         marketing_opt_out ENUM('Yes', 'No') DEFAULT 'No',
-        attachments LONGTEXT DEFAULT NULL,
+        attachments LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+        created_by_type VARCHAR(20) DEFAULT NULL,
+        created_by_id INT(11) DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_client_code (client_code),
-        INDEX idx_company_name (company_name),
-        INDEX idx_status (status),
-        INDEX idx_parent_client (parent_client_id),
-        INDEX idx_account_manager (account_manager_type, super_admin_account_manager_id, employee_account_manager_id),
-        INDEX idx_secondary_account_manager (secondary_account_manager_type, super_admin_secondary_account_manager_id, employee_secondary_account_manager_id),
-        FOREIGN KEY (parent_client_id) REFERENCES clients(id) ON DELETE SET NULL
+        PRIMARY KEY (id),
+        UNIQUE KEY client_code (client_code),
+        KEY idx_client_code (client_code),
+        KEY idx_company_name (company_name),
+        KEY idx_status (status),
+        KEY idx_parent_client (parent_client_id),
+        KEY idx_account_manager (account_manager_type, account_manager_id),
+        KEY idx_secondary_manager (secondary_account_manager_type, secondary_account_manager_id),
+        KEY idx_created_by (created_by_type, created_by_id)
     )
   `)
 
@@ -6502,11 +6504,11 @@ const createTenantTables = async (tenantDb) => {
     CREATE TABLE IF NOT EXISTS client_contacts (
         id INT AUTO_INCREMENT PRIMARY KEY,
         client_id INT NOT NULL,
-        first_name VARCHAR(100) NOT NULL,
-        last_name VARCHAR(100) NOT NULL,
-        job_title VARCHAR(100) NOT NULL,
+        first_name VARCHAR(100) DEFAULT NULL,
+        last_name VARCHAR(100) DEFAULT NULL,
+        job_title VARCHAR(100) DEFAULT NULL,
         department VARCHAR(100) DEFAULT NULL,
-        email VARCHAR(255) NOT NULL,
+        email VARCHAR(255) DEFAULT NULL,
         phone_direct VARCHAR(50) DEFAULT NULL,
         mobile VARCHAR(50) NOT NULL,
         is_primary TINYINT(1) DEFAULT 0,
@@ -6537,6 +6539,64 @@ const createTenantTables = async (tenantDb) => {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_client_id (client_id),
         FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+    )
+  `)
+
+  // ======================= CLIENT QUOTATION TABLE ============================
+  await tenantDb.execute(`
+    CREATE TABLE quotations (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        quotation_number VARCHAR(50) NOT NULL,
+        quote_date DATE NOT NULL,
+        valid_until DATE NOT NULL,
+        revision_number INT(11) DEFAULT NULL,
+        client_id INT(11) NOT NULL,
+        customer_name VARCHAR(255) NOT NULL,
+        customer_contact VARCHAR(255) DEFAULT NULL,
+        customer_email VARCHAR(255) DEFAULT NULL,
+        customer_phone VARCHAR(50) DEFAULT NULL,
+        billing_address TEXT DEFAULT NULL,
+        shipping_address TEXT DEFAULT NULL,
+        project_id INT(11) DEFAULT NULL,
+        sales_person_type VARCHAR(20) DEFAULT NULL,
+        sales_person_id INT(11) DEFAULT NULL,
+        currency VARCHAR(10) DEFAULT NULL,
+        exchange_rate INT(11) DEFAULT NULL,
+        status ENUM('Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted') DEFAULT NULL,
+        private_notes TEXT DEFAULT NULL,
+        terms_conditions TEXT DEFAULT NULL,
+        attachments LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY quotation_number (quotation_number),
+        KEY idx_quotation_number (quotation_number),
+        KEY idx_client_id (client_id),
+        KEY idx_sales_person (sales_person_type, sales_person_id),
+        KEY idx_status (status),
+        KEY idx_quote_date (quote_date),
+        KEY idx_valid_until (valid_until)
+    )
+  `)
+
+  // ====================== CLIENT QUOTATIONS ITEMS TABLE =======================
+  await tenantDb.execute(`
+    CREATE TABLE quotation_items (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        quotation_id INT(11) NOT NULL,
+        description TEXT DEFAULT NULL,
+        quantity INT(11) NOT NULL,
+        unit_price INT(11) NOT NULL,
+        discount_percent INT(11) DEFAULT NULL,
+        discount_amount INT(11) DEFAULT NULL,
+        tax_rate INT(11) DEFAULT NULL,
+        tax_amount INT(11) DEFAULT NULL,
+        line_total INT(11) NOT NULL,
+        uom INT(11) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_quotation_id (quotation_id)
     )
   `)
   
