@@ -147,10 +147,11 @@ const createQuotation = async (req, res) => {
             }
         }
 
-        // Handle attachments files
-        const files = req.files || {};
-        const attachmentFiles = files.attachments || [];
-        const attachmentsArray = attachmentFiles.map(file => `/uploads/quotations/${file.filename}`);
+        const attachmentFiles = req.files || [];
+        let attachmentsArray = [];
+        for (const file of attachmentFiles) {
+            attachmentsArray.push(`/uploads/quotations/${file.filename}`);
+        }
         const attachmentsJSON = attachmentsArray.length > 0 ? JSON.stringify(attachmentsArray) : null;
 
         // Insert quotation master
@@ -238,18 +239,69 @@ const createQuotation = async (req, res) => {
     }
 };
 
+const getAllQuotationsSimple = async (req, res) => {
+    try {
+        const db = req.db;
+        const [rows] = await db.query(
+            `SELECT id, quotation_number, customer_name 
+             FROM quotations
+             ORDER BY id DESC`
+        );
+        res.json({
+            success: true,
+            data: rows
+        });
+    } catch (error) {
+        console.error('Error fetching quotations:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 const getAllQuotations = async (req, res) => {
     try {
         const db = req.db;
         const { page = 1, limit = 10, search = "" } = req.query;
         const offset = (page - 1) * limit;
 
+        const userId = req.user.id;
+        const userType = req.user.user_type;
+        const companyId = req.user.company;
+
+        // Check if user has full access (Super_admin or Quotation_view permission)
+        let hasFullAccess = false;
+        if (userType === "Super_admin") {
+            hasFullAccess = true;
+        } else {
+            const [permRows] = await db.query(
+                `SELECT 1
+                 FROM employee_permissions ep
+                 INNER JOIN permissions p ON p.id = ep.permission_id
+                 WHERE ep.company_id = ?
+                   AND ep.employee_id = ?
+                   AND p.slug = 'Quotation_view'
+                   AND ep.assigned = 1
+                 LIMIT 1`,
+                [companyId, userId]
+            );
+            if (permRows.length > 0) hasFullAccess = true;
+        }
+
         let whereClause = "";
         let values = [];
 
+        // Search condition
         if (search) {
-            whereClause = `WHERE q.quotation_number LIKE ? OR q.customer_name LIKE ?`;
+            whereClause = `WHERE (q.quotation_number LIKE ? OR q.customer_name LIKE ?)`;
             values = [`%${search}%`, `%${search}%`];
+        } else {
+            whereClause = "WHERE 1=1";
+        }
+
+        // If not full access, filter by sales_person (type + id)
+        if (!hasFullAccess) {
+            const userTypeValue = userType === "Super_admin" ? "Super_admin" : userType;
+            whereClause += ` AND q.sales_person_type = ? AND q.sales_person_id = ?`;
+            values.push(userTypeValue, userId);
         }
 
         // Count total records
@@ -262,7 +314,7 @@ const getAllQuotations = async (req, res) => {
         // Fetch paginated data
         const [rows] = await db.query(
             `SELECT q.id, q.quotation_number, q.quote_date, q.valid_until,
-                    q.revision_number, q.client_id, q.customer_name, q.status,
+                    q.revision_number, q.client_id, q.customer_name, q.attachments, q.status,
                     q.currency, q.created_at,
                     (SELECT COALESCE(SUM(line_total), 0) FROM quotation_items WHERE quotation_id = q.id) as total_amount
              FROM quotations q
@@ -272,8 +324,19 @@ const getAllQuotations = async (req, res) => {
             [...values, Number(limit), Number(offset)]
         );
 
-        // Parse attachments if needed (optional, can be heavy)
-        // For simplicity, we return without attachments. If needed, add another query or JSON parse.
+        // Parse attachments JSON string to array
+        const data = rows.map(row => {
+            if (row.attachments) {
+                try {
+                    row.attachments = JSON.parse(row.attachments);
+                } catch (e) {
+                    row.attachments = [];
+                }
+            } else {
+                row.attachments = [];
+            }
+            return row;
+        });
 
         res.json({
             success: true,
@@ -281,7 +344,7 @@ const getAllQuotations = async (req, res) => {
             limit: Number(limit),
             total,
             totalPages: Math.ceil(total / limit),
-            data: rows
+            data: data
         });
     } catch (error) {
         console.error('Error fetching quotations:', error);
@@ -411,16 +474,13 @@ const updateQuotation = async (req, res) => {
             }
         }
 
-        // Handle attachments files
+        // Handle attachments files (same as before)
         const files = req.files || {};
         const attachmentFiles = Array.isArray(files) ? files : (files.attachments || []);
         let attachmentsArray = [];
-
-        // If new files are uploaded, save them
         if (attachmentFiles.length > 0) {
             attachmentsArray = attachmentFiles.map(file => `/uploads/quotations/${file.filename}`);
         } else {
-            // If no new files, keep existing attachments (optional – you can fetch and keep)
             const [oldQuotation] = await connection.query(
                 'SELECT attachments FROM quotations WHERE id = ?',
                 [id]
@@ -438,25 +498,12 @@ const updateQuotation = async (req, res) => {
         // Update quotation master
         await connection.query(
             `UPDATE quotations SET
-                quotation_number = ?,
-                quote_date = ?,
-                valid_until = ?,
-                revision_number = ?,
-                client_id = ?,
-                customer_name = ?,
-                customer_contact = ?,
-                customer_email = ?,
-                customer_phone = ?,
-                billing_address = ?,
-                shipping_address = ?,
-                project_id = ?,
-                sales_person_type = ?,
-                sales_person_id = ?,
-                currency = ?,
-                exchange_rate = ?,
-                status = ?,
-                private_notes = ?,
-                terms_conditions = ?,
+                quotation_number = ?, quote_date = ?, valid_until = ?, revision_number = ?,
+                client_id = ?, customer_name = ?, customer_contact = ?, customer_email = ?, customer_phone = ?,
+                billing_address = ?, shipping_address = ?, project_id = ?,
+                sales_person_type = ?, sales_person_id = ?,
+                currency = ?, exchange_rate = ?,
+                status = ?, private_notes = ?, terms_conditions = ?,
                 attachments = ?
             WHERE id = ?`,
             [
@@ -470,32 +517,66 @@ const updateQuotation = async (req, res) => {
             ]
         );
 
-        // Delete old items
-        await connection.query('DELETE FROM quotation_items WHERE quotation_id = ?', [id]);
+        // ========== UPSERT ITEMS (no delete, update or insert based on id or matching fields) ==========
+        for (const item of itemsArray) {
+            const {
+                id: itemId,
+                description,
+                quantity,
+                uom,
+                Unit_Price,
+                discount_percent,
+                discount_amount,
+                tax_rate,
+                tax_amount,
+                total
+            } = item;
 
-        // Insert new items
-        if (itemsArray.length > 0) {
-            for (const item of itemsArray) {
-                const {
-                    description,
-                    quantity,
-                    uom,
-                    Unit_Price,
-                    discount_percent,
-                    discount_amount,
-                    tax_rate,
-                    tax_amount,
-                    total
-                } = item;
+            // Calculate line total
+            let lineTotal = total;
+            if (!lineTotal && quantity && Unit_Price) {
+                let subtotal = parseFloat(quantity) * parseFloat(Unit_Price);
+                let discount = discount_percent ? subtotal * (discount_percent / 100) : (discount_amount || 0);
+                lineTotal = subtotal - discount;
+            }
 
-                // Calculate line total if not provided
-                let lineTotal = total;
-                if (!lineTotal && quantity && Unit_Price) {
-                    let subtotal = parseFloat(quantity) * parseFloat(Unit_Price);
-                    let discount = discount_percent ? subtotal * (discount_percent / 100) : (discount_amount || 0);
-                    lineTotal = subtotal - discount;
+            // Helper to find existing item
+            let existingItemId = null;
+            if (itemId) {
+                existingItemId = itemId;
+            } else {
+                // Try to find by matching description, quantity, and unit_price (case-insensitive trim)
+                const [match] = await connection.query(
+                    `SELECT id FROM quotation_items
+                     WHERE quotation_id = ?
+                       AND TRIM(description) = TRIM(?)
+                       AND quantity = ?
+                       AND unit_price = ?
+                     LIMIT 1`,
+                    [id, description, quantity, Unit_Price]
+                );
+                if (match.length > 0) {
+                    existingItemId = match[0].id;
                 }
+            }
 
+            if (existingItemId) {
+                // Update existing item
+                await connection.query(
+                    `UPDATE quotation_items SET
+                        description = ?, quantity = ?, unit_price = ?,
+                        discount_percent = ?, discount_amount = ?, tax_rate = ?, tax_amount = ?,
+                        line_total = ?, uom = ?
+                    WHERE id = ? AND quotation_id = ?`,
+                    [
+                        description, quantity, Unit_Price,
+                        discount_percent || 0, discount_amount || 0, tax_rate || 0, tax_amount || 0,
+                        lineTotal || 0, uom || null,
+                        existingItemId, id
+                    ]
+                );
+            } else {
+                // Insert new item
                 await connection.query(
                     `INSERT INTO quotation_items (
                         quotation_id, description, quantity, unit_price,
@@ -503,16 +584,9 @@ const updateQuotation = async (req, res) => {
                         line_total, uom
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
-                        id,
-                        description,
-                        quantity,
-                        Unit_Price,
-                        discount_percent || 0,
-                        discount_amount || 0,
-                        tax_rate || 0,
-                        tax_amount || 0,
-                        lineTotal || 0,
-                        uom || null
+                        id, description, quantity, Unit_Price,
+                        discount_percent || 0, discount_amount || 0, tax_rate || 0, tax_amount || 0,
+                        lineTotal || 0, uom || null
                     ]
                 );
             }
@@ -535,10 +609,213 @@ const updateQuotation = async (req, res) => {
     }
 };
 
+const updateQuotationFile = async (req, res) => {
+    let connection;
+    try {
+        const db = req.db;
+        const { id, field } = req.params;
+        const files = req.files || [];
+        const { index } = req.body;
+
+        const allowedFields = ['attachments'];
+        if (!allowedFields.includes(field)) {
+            return res.status(400).json({ success: false, message: 'Invalid field name' });
+        }
+
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid quotation ID' });
+        }
+
+        if (files.length === 0) {
+            return res.status(400).json({ success: false, message: 'No file uploaded' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        // Fetch existing attachments
+        const [quotationRows] = await connection.query(
+            'SELECT attachments FROM quotations WHERE id = ?',
+            [id]
+        );
+        if (quotationRows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Quotation not found' });
+        }
+
+        let attachmentsArray = [];
+        if (quotationRows[0].attachments) {
+            try {
+                attachmentsArray = JSON.parse(quotationRows[0].attachments);
+            } catch (e) {
+                attachmentsArray = [];
+            }
+        }
+
+        let updateValue = null;
+
+        if (field === 'attachments') {
+            if (index === undefined || index === null) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Index is required for attachments update' });
+            }
+
+            const newFilePath = `/uploads/quotations/${files[0].filename}`;
+            if (index >= 0 && index < attachmentsArray.length) {
+                attachmentsArray[index] = newFilePath;
+            } else {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid index' });
+            }
+            updateValue = JSON.stringify(attachmentsArray);
+        }
+
+        await connection.query(
+            `UPDATE quotations SET ${field} = ? WHERE id = ?`,
+            [updateValue, id]
+        );
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: `${field} updated successfully`,
+            data: { [field]: JSON.parse(updateValue) }
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('Error updating quotation file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+const deleteQuotationFile = async (req, res) => {
+    let connection;
+    try {
+        const db = req.db;
+        const { id, field } = req.params;
+        const { index } = req.body;
+
+        const allowedFields = ['attachments'];
+        if (!allowedFields.includes(field)) {
+            return res.status(400).json({ success: false, message: 'Invalid field name' });
+        }
+
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid quotation ID' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        // Fetch existing attachments
+        const [quotationRows] = await connection.query(
+            `SELECT attachments FROM quotations WHERE id = ?`,
+            [id]
+        );
+        if (quotationRows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Quotation not found' });
+        }
+
+        let attachmentsArray = [];
+        if (quotationRows[0].attachments) {
+            try {
+                attachmentsArray = JSON.parse(quotationRows[0].attachments);
+            } catch (e) {
+                attachmentsArray = [];
+            }
+        }
+
+        let updateValue = null;
+
+        if (field === 'attachments') {
+            if (index === undefined || index === null) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Index required for attachments' });
+            }
+            if (index >= 0 && index < attachmentsArray.length) {
+                attachmentsArray.splice(index, 1);
+                updateValue = attachmentsArray.length > 0 ? JSON.stringify(attachmentsArray) : null;
+            } else {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Invalid index' });
+            }
+        }
+
+        await connection.query(
+            `UPDATE quotations SET ${field} = ? WHERE id = ?`,
+            [updateValue, id]
+        );
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: `${field} deleted successfully`
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('Error deleting quotation file:', error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+const deleteQuotations = async (req, res) => {
+    let connection;
+    try {
+        const db = req.db;
+        let { ids } = req.body;
+
+        if (!ids) {
+            return res.status(400).json({ success: false, message: 'No quotation IDs provided' });
+        }
+        if (!Array.isArray(ids)) {
+            ids = [ids];
+        }
+        if (ids.length === 0) {
+            return res.status(400).json({ success: false, message: 'No quotation IDs provided' });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        const placeholders = ids.map(() => '?').join(',');
+        const [result] = await connection.query(
+            `DELETE FROM quotations WHERE id IN (${placeholders})`,
+            ids
+        );
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: 'Quotation(s) deleted successfully',
+            deletedCount: result.affectedRows
+        });
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error('Delete quotations error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
 module.exports = {
     generateQuotationNumber,
     createQuotation,
     getAllQuotations,
     getQuotationById,
-    updateQuotation
+    updateQuotation,
+    updateQuotationFile,
+    deleteQuotationFile,
+    deleteQuotations,
+    getAllQuotationsSimple
 }

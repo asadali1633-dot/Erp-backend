@@ -21,8 +21,9 @@ const { saveSuperAdminEducation, getSuperAdminEducation, getSuperAdminEducationB
 const setUploadConfig = require("../controllers/filemulters/uploadConfig");
 const { saveSuperAdminQualification, getSuperAdminQualifications, getSuperAdminQualificationById, updateSuperAdminQualification, saveEmployeeQualification, getEmployeeQualification, getEmployeeQualificationById, updateEmployeeQualification } = require("../controllers/qualification");
 const{ saveSuperAdminExperience, getSuperAdminExperience, getSuperAdminExperienceById, updateSuperAdminExperience, saveEmployeeExperience, getEmployeeExperience, getEmployeeExperienceById, updateEmployeeExperience } = require("../controllers/experiance/index");
-const { generateClientCode, createClient, getClientsList, getClientsWithPagination, getClientById, updateClient, updateClientFile, deleteClientFile } = require("../controllers/clients");
-const { generateQuotationNumber, createQuotation, getAllQuotations, getQuotationById, updateQuotation } = require("../controllers/quote");
+const { generateClientCode, createClient, getClientsList, getClientsWithPagination, getClientById, updateClient, updateClientFile, deleteClientFile, deleteClients } = require("../controllers/clients");
+const { generateQuotationNumber, createQuotation, getAllQuotations, getQuotationById, updateQuotation, updateQuotationFile, deleteQuotationFile, deleteQuotations, getAllQuotationsSimple } = require("../controllers/quote");
+const { generateInvoiceNumber, createInvoice, getAllInvoices, getInvoiceById } = require("../controllers/invoice");
 
 
 
@@ -471,7 +472,7 @@ router.put("/api/employee/update/experiance/:id",
 
 
 // PERMISSION MODULES SET ROUTES FOR DEVELOPER ===================================
-router.post("/api/system/sync-modules",syncModules);
+router.post("/api/system/sync-modules",tenantDbMiddleware,syncModules);
 
 
 // ADMIN/USER OTP ROUTES ============================
@@ -497,6 +498,7 @@ router.post(
     '/api/client/client-create',
     verifyToken,
     tenantDbMiddleware,
+    checkPermission("Client_create"),
     setUploadConfig("client_documents", 
         ["image/jpeg", "image/png", "application/pdf", "application/msword", 
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
@@ -532,6 +534,7 @@ router.put(
     '/api/client/update/:id',
     verifyToken,
     tenantDbMiddleware,
+    checkPermission("Client_update"),
     setUploadConfig("client_documents", 
         ["image/jpeg", "image/png", "application/pdf", "application/msword", 
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
@@ -557,11 +560,21 @@ router.patch(
     upload.any(),   // accepts any files, we'll check in controller
     updateClientFile
 );
+
+
 router.delete(
     '/api/client/delete-file/:id/:field',
     verifyToken,
     tenantDbMiddleware,
     deleteClientFile
+);
+
+router.delete(
+    '/api/client/delete',
+    verifyToken,
+    tenantDbMiddleware,
+    checkPermission("Client_delete"),
+    deleteClients
 );
 
 
@@ -575,6 +588,7 @@ router.post('/api/quotation/generate-number',
 router.post('/api/quotation/create', 
     verifyToken, 
     tenantDbMiddleware, 
+    checkPermission("quotation_create"),
     setUploadConfig('quotations', 
         ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
@@ -597,10 +611,73 @@ router.get('/api/quotation/get/:id',
 router.put('/api/quotation/update/:id', 
     verifyToken, 
     tenantDbMiddleware, 
+    checkPermission("quotation_update"),
      setUploadConfig('quotations', 
         ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
     upload.array('attachments'), updateQuotation);
+
+router.patch(
+    '/api/quotation/update-file/:id/:field',
+    verifyToken,
+    tenantDbMiddleware,
+    setUploadConfig('quotations', 
+        ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+    upload.any(),
+    updateQuotationFile
+);
+
+router.get('/api/quotation/simple-list', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    getAllQuotationsSimple
+);
+
+
+
+router.delete(
+    '/api/quotation/delete-file/:id/:field',
+    verifyToken,
+    tenantDbMiddleware,
+    deleteQuotationFile
+);
+
+router.delete('/api/quotation/delete', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    checkPermission("quotation_delete"),
+    deleteQuotations
+);
+
+
+
+// ================================================
+router.post('/api/invoice/generate-number', 
+    verifyToken, 
+    tenantDbMiddleware, 
+    generateInvoiceNumber
+);
+
+router.post('/api/invoice/create', 
+    verifyToken, 
+    tenantDbMiddleware,
+    createInvoice
+);
+
+router.get(
+    '/api/invoice/get-all',
+    verifyToken,
+    tenantDbMiddleware,
+    getAllInvoices
+);
+
+router.get(
+    '/api/invoice/get/:id',
+    verifyToken,
+    tenantDbMiddleware,
+    getInvoiceById
+);
 
 
 module.exports = router;

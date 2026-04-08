@@ -1,8 +1,9 @@
 const config = require("./modules.config");
-const db = ""
 
 const syncModules = async (req, res) => {
   try {
+    const db = req.db;
+    console.log("db", db)
     for (const moduleSlug in config) {
       // module
       await db.query(
@@ -17,7 +18,7 @@ const syncModules = async (req, res) => {
       const moduleId = moduleRow.id;
 
       // fields
-      for (const field of config[moduleSlug].fields) {
+      for (const field of (config[moduleSlug].fields || [])) {
         await db.query(
           "INSERT IGNORE INTO module_fields (module_id, field_name) VALUES (?, ?)",
           [moduleId, field]
@@ -41,5 +42,5 @@ const syncModules = async (req, res) => {
 };
 
 module.exports = {
-    syncModules
+  syncModules
 }

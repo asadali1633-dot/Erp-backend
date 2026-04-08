@@ -333,26 +333,63 @@ const getClientsWithPagination = async (req, res) => {
         const { page = 1, limit = 10, search = "" } = req.query;
         const offset = (page - 1) * limit;
 
-        // Base query
+        const userId = req.user.id;
+        const userType = req.user.user_type;
+        const companyId = req.user.company;
+
+        // Check if user has full access
+        let hasFullAccess = false;
+        if (userType === "Super_admin") {
+            hasFullAccess = true;
+        } else {
+            const [permRows] = await db.query(
+                `SELECT 1
+                 FROM employee_permissions ep
+                 INNER JOIN permissions p ON p.id = ep.permission_id
+                 WHERE ep.company_id = ?
+                   AND ep.employee_id = ?
+                   AND p.slug = 'Client_view'
+                   AND ep.assigned = 1
+                 LIMIT 1`,
+                [companyId, userId]
+            );
+            if (permRows.length > 0) hasFullAccess = true;
+        }
+
         let whereClause = "";
         let values = [];
 
         if (search) {
-            whereClause = `WHERE company_name LIKE ? OR client_code LIKE ?`;
+            whereClause = `WHERE (company_name LIKE ? OR client_code LIKE ?)`;
             values = [`%${search}%`, `%${search}%`];
+        } else {
+            whereClause = "WHERE 1=1";
         }
 
-        // Count total records
+        if (!hasFullAccess) {
+            const userTypeValue = userType === "Super_admin" ? "Super_admin" : userType;
+            whereClause += ` AND (
+                (created_by_type = ? AND created_by_id = ?) OR
+                (account_manager_type = ? AND account_manager_id = ?) OR
+                (secondary_account_manager_type = ? AND secondary_account_manager_id = ?)
+            )`;
+            values.push(
+                userTypeValue, userId,
+                userTypeValue, userId,
+                userTypeValue, userId
+            );
+        }
+
         const [countResult] = await db.query(
             `SELECT COUNT(*) as total FROM clients ${whereClause}`,
             values
         );
         const total = countResult[0].total;
 
-        // Fetch paginated data
         const [rows] = await db.query(
             `SELECT id, client_code, company_name, trading_name, client_type, status,
-                    billing_city, billing_country, tax_exemption_certificate,msa_document,attachments,currency, created_at
+                    billing_city, billing_country, tax_exemption_certificate, msa_document,
+                    attachments, currency, created_at
              FROM clients
              ${whereClause}
              ORDER BY id DESC
@@ -360,13 +397,27 @@ const getClientsWithPagination = async (req, res) => {
             [...values, Number(limit), Number(offset)]
         );
 
+        // ✅ Parse attachments JSON string to array
+        const data = rows.map(row => {
+            if (row.attachments) {
+                try {
+                    row.attachments = JSON.parse(row.attachments);
+                } catch (e) {
+                    row.attachments = [];
+                }
+            } else {
+                row.attachments = [];
+            }
+            return row;
+        });
+
         res.json({
             success: true,
             page: Number(page),
             limit: Number(limit),
             total,
             totalPages: Math.ceil(total / limit),
-            data: rows
+            data: data
         });
     } catch (error) {
         console.error("Get clients paginated error:", error);
@@ -644,7 +695,7 @@ const updateClient = async (req, res) => {
 
             for (const addr of shippingArray) {
                 const { id: addrId, address_name, address_line1, address_line2, city, state_province,
-                        postal_code, country, default_shipping, contact_person, phone_location, notes } = addr;
+                    postal_code, country, default_shipping, contact_person, phone_location, notes } = addr;
                 if (addrId) {
                     // Update existing
                     await connection.query(
@@ -653,7 +704,7 @@ const updateClient = async (req, res) => {
                             postal_code = ?, country = ?, default_shipping = ?, contact_person = ?, phone_location = ?, notes = ?
                         WHERE id = ? AND client_id = ?`,
                         [address_name, address_line1, address_line2, city, state_province,
-                         postal_code, country, default_shipping || 'No', contact_person, phone_location, notes, addrId, id]
+                            postal_code, country, default_shipping || 'No', contact_person, phone_location, notes, addrId, id]
                     );
                 } else {
                     // Insert new
@@ -663,7 +714,7 @@ const updateClient = async (req, res) => {
                              postal_code, country, default_shipping, contact_person, phone_location, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [id, address_name, address_line1, address_line2, city, state_province,
-                         postal_code, country, default_shipping, contact_person, phone_location, notes]
+                            postal_code, country, default_shipping, contact_person, phone_location, notes]
                     );
                 }
             }
@@ -873,6 +924,55 @@ const deleteClientFile = async (req, res) => {
     }
 };
 
+const deleteClients = async (req, res) => {
+    let connection;
+    try {
+        const db = req.db;
+        let { ids } = req.body;
+
+        if (!ids) {
+            return res.status(400).json({
+                success: false,
+                message: "No client IDs provided"
+            });
+        }
+        if (!Array.isArray(ids)) {
+            ids = [ids];
+        }
+        if (ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No client IDs provided"
+            });
+        }
+
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        const placeholders = ids.map(() => "?").join(",");
+        const sql = `DELETE FROM clients WHERE id IN (${placeholders})`;
+
+        const [result] = await connection.query(sql, ids);
+
+        await connection.commit();
+
+        res.status(200).json({
+            success: true,
+            message: "Client(s) deleted successfully",
+            deletedCount: result.affectedRows
+        });
+
+    } catch (error) {
+        if (connection) await connection.rollback();
+        console.error("Delete Clients Error:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    } finally {
+        if (connection) connection.release();
+    }
+};
 
 module.exports = {
     generateClientCode,
@@ -882,5 +982,6 @@ module.exports = {
     getClientById,
     updateClient,
     updateClientFile,
-    deleteClientFile
+    deleteClientFile,
+    deleteClients
 }

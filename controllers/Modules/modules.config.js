@@ -1,9 +1,9 @@
 // modules.config.js
 module.exports = {
-  overview: {
-    fields: [],
-    actions: ["company_update"]
-  },
+  // overview: {
+  //   fields: [],
+  //   actions: ["company_update"]
+  // },
 
   // Brand: {
   //   fields: [],
@@ -23,10 +23,14 @@ module.exports = {
   //   actions: ["view","create"]
   // },
 
-  // software: {
-  //   fields: ["name", "license_key", "expiry_date", "price"],
-  //   actions: ["view", "create", "update", "delete"]
-  // },
+  Client: {
+    // fields: ["name", "license_key", "expiry_date", "price"],
+    actions: ["view", "create", "update", "delete"]
+  },
+  quotation: {
+    // fields: ["name", "license_key", "expiry_date", "price"],
+    actions: ["view", "create", "update", "delete"]
+  },
 
   // hardware: {
   //   fields: [],
