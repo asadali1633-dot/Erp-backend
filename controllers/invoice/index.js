@@ -33,7 +33,7 @@ const generateInvoiceNumber = async (req, res) => {
         if (client_id && !isNaN(parseInt(client_id))) {
             const [clientRows] = await db.query(
                 `SELECT company_name,
-                        billing_address_line1,currency
+                        billing_address_line1,currency,ntn,registration_number AS strn
                  FROM clients WHERE id = ?`,
                 [client_id]
             );
@@ -59,9 +59,13 @@ const generateInvoiceNumber = async (req, res) => {
                     ].filter(Boolean).join(', ');
                 }
 
-                let contactFirstName = '', contactLastName = '', contactFullName = '', contactEmail = '';
+                let contactFirstName = '', 
+                contactLastName = '',
+                contactFullName = '', 
+                contactEmail = '', 
+                mobile= '';
                 const [contactRows] = await db.query(
-                    `SELECT first_name, last_name, email
+                    `SELECT first_name, last_name, email,mobile
                      FROM client_contacts
                      WHERE client_id = ?
                      ORDER BY is_primary DESC, id ASC
@@ -73,6 +77,7 @@ const generateInvoiceNumber = async (req, res) => {
                     contactLastName = contactRows[0].last_name || '';
                     contactFullName = `${contactFirstName} ${contactLastName}`.trim();
                     contactEmail = contactRows[0].email || '';
+                    mobile = contactRows[0]?.mobile
                 }
 
                 customerDetails = {
@@ -83,7 +88,10 @@ const generateInvoiceNumber = async (req, res) => {
                     contact_last_name: contactLastName,
                     contact_name: contactFullName,
                     contact_email: contactEmail,
-                    currency: client?.currency
+                    mobile:mobile,
+                    currency: client?.currency,
+                    ntn: client?.ntn,
+                    strn: client?.strn
                 };
             }
         }
@@ -397,6 +405,33 @@ const getInvoiceById = async (req, res) => {
 
         const invoice = invoiceRows[0];
 
+        // Fetch client details (registration_number, ntn)
+        let clientDetails = {};
+        if (invoice.client_id) {
+            const [clientRows] = await db.query(
+                `SELECT registration_number, ntn FROM clients WHERE id = ?`,
+                [invoice.client_id]
+            );
+            if (clientRows.length > 0) {
+                clientDetails = clientRows[0];
+            }
+        }
+
+        // Fetch primary contact mobile
+        let contactMobile = null;
+        if (invoice.client_id) {
+            const [contactRows] = await db.query(
+                `SELECT mobile FROM client_contacts 
+                 WHERE client_id = ? 
+                 ORDER BY is_primary DESC, id ASC 
+                 LIMIT 1`,
+                [invoice.client_id]
+            );
+            if (contactRows.length > 0) {
+                contactMobile = contactRows[0].mobile;
+            }
+        }
+
         // Parse JSON fields
         if (invoice.attachments) {
             try {
@@ -430,7 +465,7 @@ const getInvoiceById = async (req, res) => {
 
         // Fetch invoice items
         const [items] = await db.query(
-            `SELECT id, product_id, description, quantity, unit_price, uom,
+            `SELECT id, description, quantity, unit_price, uom,
                     discount_percent, discount_amount, tax_rate, tax_amount, line_total
              FROM invoice_items
              WHERE invoice_id = ?`,
@@ -441,6 +476,9 @@ const getInvoiceById = async (req, res) => {
             success: true,
             data: {
                 ...invoice,
+                strn: clientDetails.registration_number ,
+                ntn: clientDetails.ntn,
+                contact_mobile: contactMobile,
                 items
             }
         });
